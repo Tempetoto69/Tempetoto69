@@ -502,7 +502,7 @@ function standRows(){
   rows.push([C("Tussenstand Tempetoto 2026","title-cell",6)]);
   rows.push([]);
   // koprij
-  rows.push([C("plaats","grouphdr"),C("naam","grouphdr",2),C(""),C("voorrondes","grouphdr"),C("finalerondes","grouphdr"),C("totaal","grouphdr")]);
+  rows.push([C("plaats","grouphdr"),C("naam","grouphdr",3),C("gr.fase","grouphdr"),C("KO","grouphdr"),C("totaal","grouphdr")]);
   const data=DEELNEMERS.map(n=>({naam:n,...computeScore(n)})).sort((a,b)=>b.totaal-a.totaal);
   let lastPts=null;
   data.forEach((d,i)=>{
@@ -510,7 +510,7 @@ function standRows(){
     if(d.totaal!==lastPts) lastPts=d.totaal;
     const medal=(rank==="1")?"🥇 ":(rank==="2")?"🥈 ":(rank==="3")?"🥉 ":"";
     rows.push([
-      C(rank,"standrank"),C(medal+d.naam,d.naam==="Floris"?"me":"",2),C("",d.naam==="Floris"?"me":""),
+      C(rank,"standrank"),C(medal+d.naam,d.naam==="Floris"?"me":"",3),
       C(String(d.voorrondes),"center"+(d.naam==="Floris"?" me":"")),
       C(String(d.finalerondes),"center"+(d.naam==="Floris"?" me":"")),
       C(String(d.totaal),"pt"),
@@ -519,7 +519,7 @@ function standRows(){
   rows.push([]);
   // statistiek
   const f=UITSLAGEN.facts;
-  rows.push([C("Statistieken (werkelijk)","lbl",6)]);
+  rows.push([C("Statistieken","lbl",6)]);
   rows.push([C("Totaal goals:","lbl-r",2),C(f.totalGoals??"—","center")]);
   rows.push([C("Gele kaarten:","lbl-r",2),C(f.yellow??"—","center")]);
   rows.push([C("Rode kaarten:","lbl-r",2),C(f.red??"—","center")]);
