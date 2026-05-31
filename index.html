@@ -504,10 +504,10 @@ function standRows(){
   // koprij — spanning op brede kolommen: #(1) naam(5) gr.fase(4) KO(3) totaal(3)
   rows.push([C("#","grouphdr",2),C("Naam","grouphdr",5),C("Groepsfase","grouphdr",4),C("KO-rondes","grouphdr",3),C("Totaal","grouphdr",3)]);
   const data=DEELNEMERS.map(n=>({naam:n,...computeScore(n)})).sort((a,b)=>b.totaal-a.totaal);
-  let lastPts=null;
+  let lastPts=null, currentRank=0;
   data.forEach((d,i)=>{
-    const rank = d.totaal===lastPts ? "." : String(i+1);
-    if(d.totaal!==lastPts) lastPts=d.totaal;
+    if(d.totaal!==lastPts){lastPts=d.totaal;currentRank=i+1;}
+    const rank = String(currentRank);
     const medal=(rank==="1")?"🥇 ":(rank==="2")?"🥈 ":(rank==="3")?"🥉 ":"";
     rows.push([
       C(rank,"standrank",2),
