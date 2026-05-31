@@ -87,7 +87,7 @@ body{
 .yellowcell{background:var(--yellow-soft)}
 .total-cell{background:#FFE14D;font-weight:700;border:2px solid #1a1a1a;text-align:center}
 .pt-red{background:var(--rood);color:#fff;font-weight:700;text-align:center;border-color:var(--rood2)}
-.rules{font-size:11px;color:#444;white-space:normal;line-height:1.45;overflow:visible;height:auto;text-overflow:clip}
+.sheet td.rules{font-size:11px;color:#444;white-space:normal;line-height:1.45;overflow:visible;height:auto;text-overflow:clip}
 .flag{margin-right:3px}
 
 /* STAND-tab specifiek */
@@ -376,12 +376,19 @@ function participantRows(naam){
   }
   empty();
 
+  // subtotaal groepsfase
+  rows.push(subRow("Subtotaal groepsfase:",sc.voorrondes,"pt"));
+  empty();
+
   // knock-out
   push(C("Knock-out (uitslag na 90 min)","grouphdr",NCOLS));
   for(const round of KO_ROUNDS){
     const br=u.ko.brackets[round.key]||[];
-    if(!br.length) continue;
     push(C(`${round.naam}  ·  toto ${round.toto} / exact +${round.exact}`,"lbl",NCOLS));
+    if(!br.length){
+      push(C("— wedstrijden worden later aangevuld —","subhdr",NCOLS));
+      continue;
+    }
     push(C(""),C(""),C("voorsp.","subhdr"),C("uitslag","subhdr"),C("pt.","subhdr"));
     br.forEach((duel,i)=>{
       const pred=(v.ko[round.key]||[])[i]||"";
@@ -395,9 +402,8 @@ function participantRows(naam){
   }
   empty();
 
-  // totalen onderaan
-  rows.push(subRow("Punten uit voorrondes:",sc.voorrondes,"pt"));
-  rows.push(subRow("Punten uit finalerondes:",sc.finalerondes,"pt"));
+  // subtotaal KO + eindtotaal
+  rows.push(subRow("Subtotaal KO:",sc.finalerondes,"pt"));
   rows.push(subRow("TOTAAL:",sc.totaal,"total-cell"));
   return rows;
 }
