@@ -502,20 +502,19 @@ function standRows(){
   rows.push([C("Tussenstand Tempetoto 2026","title-cell",16)]);
   rows.push([]);
   // koprij — spanning op brede kolommen: #(1) naam(5) gr.fase(4) KO(3) totaal(3)
-  rows.push([C("#","grouphdr"),C("Naam","grouphdr",5),C("Groepsfase","grouphdr",4),C("KO-rondes","grouphdr",3),C("Totaal","grouphdr",3)]);
+  rows.push([C("#","grouphdr",2),C("Naam","grouphdr",5),C("Groepsfase","grouphdr",4),C("KO-rondes","grouphdr",3),C("Totaal","grouphdr",3)]);
   const data=DEELNEMERS.map(n=>({naam:n,...computeScore(n)})).sort((a,b)=>b.totaal-a.totaal);
   let lastPts=null;
   data.forEach((d,i)=>{
     const rank = d.totaal===lastPts ? "." : String(i+1);
     if(d.totaal!==lastPts) lastPts=d.totaal;
     const medal=(rank==="1")?"🥇 ":(rank==="2")?"🥈 ":(rank==="3")?"🥉 ":"";
-    const me=d.naam==="Floris";
     rows.push([
-      C(rank,"standrank"),
-      C(medal+d.naam,me?"me":"",5),
-      C(String(d.voorrondes),"center"+(me?" me":""),4),
-      C(String(d.finalerondes),"center"+(me?" me":""),3),
-      C(String(d.totaal),"pt"+(me?" me":""),3),
+      C(rank,"standrank",2),
+      C(medal+d.naam,"",5),
+      C(String(d.voorrondes),"center",4),
+      C(String(d.finalerondes),"center",3),
+      C(String(d.totaal),"pt",3),
     ]);
   });
   rows.push([]);
