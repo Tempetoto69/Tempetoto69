@@ -199,4 +199,3 @@ const UITSLAGEN = {
 if(typeof module!=="undefined"){
   module.exports={GROUPS,GROUP_MATCHES,KO_ROUNDS,SCORING,FAVORITES,OUTSIDERS,DEELNEMERS,VOORSPELLINGEN,UITSLAGEN};
 }
-</script>
