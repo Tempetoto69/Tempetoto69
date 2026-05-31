@@ -107,6 +107,21 @@ body{
 .tabs button.active{background:#fff;color:var(--navy);font-weight:700;border-top:2px solid var(--darkred);position:relative;z-index:1}
 .tabs .grp-marker{padding:6px 8px;color:#999;font-size:11px;display:flex;align-items:center}
 @media print{.tabs,.titlebar,.namestrip{display:none}.sheetwrap{overflow:visible}}
+
+/* ---- Mobile ---- */
+@media (max-width: 600px) {
+  .titlebar{height:120px}
+  .titlebar .titletext{font-size:26px;left:14px}
+  .titlebar .titletext small{font-size:11px}
+  .tabs button{padding:10px 14px;font-size:13px}
+  body{font-size:13px}
+}
+/* iOS Safari 100dvh fix */
+@supports (height: 100dvh) {
+  body{height:100dvh}
+}
+/* Smooth touch scroll op het werkblad */
+.sheetwrap{-webkit-overflow-scrolling:touch}
 </style>
 </head>
 <body>
