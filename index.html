@@ -300,12 +300,6 @@ function participantRows(naam){
   rows.push(preRow("Rode kaarten:",pre.red||"",cardPts(pre,"red")));
   empty();
 
-  // ===== Referentietabellen: verrassing & deceptie =====
-  buildSurpriseTable(v,u).forEach(r=>rows.push(r));
-  empty();
-  buildDeceptionTable(v,u).forEach(r=>rows.push(r));
-  empty();
-
   // ===== Spelregels (uit de originele Tempetoto, bijgewerkt voor WK-format) =====
   push(C("Spelregels:","hdr-blue",NCOLS));
   for(const regel of SPELREGELS) push(C("• "+regel,"rules",NCOLS));
@@ -410,6 +404,14 @@ function participantRows(naam){
   // subtotaal KO + eindtotaal
   rows.push(subRow("Subtotaal KO:",sc.finalerondes,"pt"));
   rows.push(subRow("TOTAAL:",sc.totaal,"total-cell"));
+  empty();
+
+  // ===== Addendum: verrassing & deceptie tabellen =====
+  push(C("Addendum — Verrassing & Deceptie tabellen","grouphdr",NCOLS));
+  empty();
+  buildSurpriseTable(v,u).forEach(r=>rows.push(r));
+  empty();
+  buildDeceptionTable(v,u).forEach(r=>rows.push(r));
   return rows;
 }
 
