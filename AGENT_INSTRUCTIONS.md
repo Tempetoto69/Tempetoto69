@@ -15,15 +15,45 @@ Repository: `https://github.com/Tempetoto69/Tempetoto69`
 
 ---
 
+## Bronnen
+
+Gebruik de volgende bronnen **in deze volgorde van prioriteit**:
+
+### 1. Primaire bron — FIFA officieel
+- URL: `https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/match-centre`
+- Wat je hier vindt: officiële uitslagen, exacte scores na 90 min, gele/rode kaarten, topscorerslijst
+- Hoe te interpreteren:
+  - Score na 90 min = de uitslag die je invoert (géén verlenging of penalty's)
+  - Als er "AET" (After Extra Time) of "PSO" (Penalty Shoot-out) staat: noteer alleen de stand na 90 min
+  - Gele/rode kaarten: cumulatief over het toernooi
+
+### 2. Back-up bron — BBC Sport
+- URL: `https://www.bbc.com/sport/football/world-cup`
+- Wat je hier vindt: scores, samenvattingen, topscorers
+- Hoe te interpreteren: zelfde als FIFA; BBC toont ook de stand na 90 min apart
+
+### 3. Back-up bron — NOS Sport
+- URL: `https://nos.nl/sport/voetbal/wk`
+- Wat je hier vindt: uitslagen in het Nederlands, handig voor spellingcheck van landnamen
+- Let op: NOS gebruikt soms andere spellingen — controleer altijd aan de hand van de landnamenlijst verderop in dit bestand
+
+### Verificatie
+- Controleer een uitslag **altijd bij minimaal 2 bronnen** voordat je die invoert.
+- Als bronnen tegenstrijdig zijn: gebruik FIFA als doorslaggevend.
+- Als een wedstrijd nog bezig is of net gespeeld: wacht tot de definitieve uitslag bevestigd is.
+
+---
+
 ## Werkwijze
 
 1. **Lees altijd eerst dit bestand** volledig voordat je iets doet.
-2. **Zoek de meest recente WK 2026-uitslagen** op via het web (betrouwbare bronnen: FIFA.com, BBC Sport, ESPN, NOS Sport).
-3. **Vergelijk** de gevonden uitslagen met wat al in `data.js` staat.
-4. **Pas alleen aan wat nieuw is** — verander nooit bestaande uitslagen tenzij je een duidelijke fout ziet.
-5. **Valideer** de data vóór je commit: controleer of scores het formaat `"thuis-uit"` hebben (bijv. `"2-1"`).
-6. **Commit en push** met een duidelijke commit message die vermeldt welke wedstrijden zijn bijgewerkt.
-7. **Doe niets** als er geen nieuwe uitslagen zijn — maak geen lege commits.
+2. **Open de FIFA match centre** en noteer alle wedstrijden die gespeeld zijn sinds de laatste update in `data.js`.
+3. **Verifieer** elke nieuwe uitslag bij een tweede bron.
+4. **Vergelijk** de gevonden uitslagen met wat al in `data.js` staat.
+5. **Pas alleen aan wat nieuw is** — verander nooit bestaande uitslagen tenzij je een duidelijke fout ziet.
+6. **Valideer** de data vóór je commit: controleer of scores het formaat `"thuis-uit"` hebben (bijv. `"2-1"`).
+7. **Commit en push** met een duidelijke commit message die vermeldt welke wedstrijden zijn bijgewerkt.
+8. **Doe niets** als er geen nieuwe uitslagen zijn — maak geen lege commits.
 
 ---
 
