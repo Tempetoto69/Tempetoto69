@@ -314,7 +314,7 @@ function participantRows(naam){
   empty();
 
   // subtotalen
-  const subRow=(label,val,cls)=>{const r=blank(15);r.push(C(label,"lbl-r",2));r.push(C("",""));r.push(C(""));r.push(C(String(val),cls||"pt"));return r;};
+  const subRow=(label,val,cls)=>{const r=blank(11);r.push(C(label,"lbl-r",6));r.push(C(String(val),cls||"pt",3));return r;};
   empty();
 
   // groepswedstrijden — twee kolommen naast elkaar (links A-F, rechts G-L per paar)
