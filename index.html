@@ -294,7 +294,8 @@ function participantRows(naam){
   rows.push(preRow("Kampioen:",flagName(pre.champion),champPts));
   rows.push(preRow("Verrassing:",flagName(pre.surprise),pre.surprise?surprisePts(pre.surprise):0));
   rows.push(preRow("Deceptie:",flagName(pre.deception),pre.deception?deceptionPts(pre.deception):0));
-  rows.push(preRow("Topscorer:",pre.topscorer,topscorerPts(pre),"g: "+(pre.topscorerGoals||"")));
+  rows.push(preRow("Topscorer (naam):",pre.topscorer,topscorerPts(pre)));
+  rows.push(preRow("↳ Aantal goals:",pre.topscorerGoals||"",null));
   rows.push(preRow("Totaal goals:",pre.totalGoals||"",totalGoalsPts(pre)));
   rows.push(preRow("Gele kaarten:",pre.yellow||"",cardPts(pre,"yellow")));
   rows.push(preRow("Rode kaarten:",pre.red||"",cardPts(pre,"red")));
