@@ -62,7 +62,7 @@ body{
 /* Tempetoto-celstijlen — kleurgebruik zoals origineel */
 .lbl{font-weight:700;color:var(--blue)}
 .lbl-r{font-weight:600;text-align:right}
-.pred{background:#bcd2ec;text-align:center;font-weight:600;color:#0a2a55;border:1px solid #7ea3d4}
+.pred{background:#bcd2ec;text-align:center;font-weight:600;color:#0a2a55;border:2px solid #2a5298}
 .res{text-align:center;font-weight:600}
 .res-box{background:#fff;text-align:center;font-weight:600;border:1px solid #b9c4d6}
 .pt{text-align:center;font-weight:700;background:#3b6fb5;color:#fff;border-color:#2a5694}
@@ -349,6 +349,7 @@ function participantRows(naam){
     }
     // doorgaan: Groepswinnaar + Runner-up (twee regels)
     advanceRows(v,u,gl,gr).forEach(r=>rows.push(r));
+    empty();
   }
   empty();
 

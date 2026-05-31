@@ -192,7 +192,30 @@ DEELNEMERS.forEach(n=>{ VOORSPELLINGEN[n]=leegVoorspelling(); });
 const UITSLAGEN = {
   group:{},                       // matchId -> "thuis-uit"
   advancers:{ top2:{}, best3:[] },// werkelijk doorgegane landen
-  ko:{ brackets:{R32:[],R16:[],KF:[],HF:[],F:[]}, results:{R32:[],R16:[],KF:[],HF:[],F:[]} },
+  ko:{
+    brackets:{
+      R32:[
+        {home:"1A", away:"3e (C/E/F/H/I)"},
+        {home:"1B", away:"3e (E/F/G/I/J)"},
+        {home:"1C", away:"2F"},
+        {home:"1D", away:"3e (B/E/F/I/J)"},
+        {home:"1E", away:"3e (A/B/C/D/F)"},
+        {home:"1F", away:"2C"},
+        {home:"1G", away:"3e (A/E/H/I/J)"},
+        {home:"1H", away:"2J"},
+        {home:"1I", away:"3e (C/D/F/G/H)"},
+        {home:"1J", away:"2H"},
+        {home:"1K", away:"3e (D/E/I/J/L)"},
+        {home:"1L", away:"3e (E/H/I/J/K)"},
+        {home:"2A", away:"2B"},
+        {home:"2D", away:"2G"},
+        {home:"2E", away:"2I"},
+        {home:"2K", away:"2L"},
+      ],
+      R16:[],KF:[],HF:[],F:[]
+    },
+    results:{R32:[],R16:[],KF:[],HF:[],F:[]}
+  },
   facts:{ champion:"", finalist:"", topscorers:["","",""], topscorerGoals:null, totalGoals:null, yellow:null, red:null },
 };
 
