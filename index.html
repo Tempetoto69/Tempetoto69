@@ -524,9 +524,10 @@ function standRows(){
   rows.push([C("Totaal goals:","lbl-r",3),C(f.totalGoals??"—","center",3)]);
   rows.push([C("Gele kaarten:","lbl-r",3),C(f.yellow??"—","center",3)]);
   rows.push([C("Rode kaarten:","lbl-r",3),C(f.red??"—","center",3)]);
-  rows.push([C("Topscorer 1:","lbl-r",3),C(f.topscorers[0]||"—","",13)]);
-  rows.push([C("Topscorer 2:","lbl-r",3),C(f.topscorers[1]||"—","",13)]);
-  rows.push([C("Topscorer 3:","lbl-r",3),C(f.topscorers[2]||"—","",13)]);
+  rows.push([C("Topscorer:","lbl-r",3)]);
+  rows.push([C("1.","lbl-r",3),C(f.topscorers[0]||"—","",13)]);
+  rows.push([C("2.","lbl-r",3),C(f.topscorers[1]||"—","",13)]);
+  rows.push([C("3.","lbl-r",3),C(f.topscorers[2]||"—","",13)]);
   return rows;
 }
 
