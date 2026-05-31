@@ -499,31 +499,33 @@ function advanceRows(v,u,gl,gr){
 // ---------- STAND-SHEET ----------
 function standRows(){
   const rows=[];
-  rows.push([C("Tussenstand Tempetoto 2026","title-cell",6)]);
+  rows.push([C("Tussenstand Tempetoto 2026","title-cell",16)]);
   rows.push([]);
-  // koprij
-  rows.push([C("plaats","grouphdr"),C("naam","grouphdr",3),C("gr.fase","grouphdr"),C("KO","grouphdr"),C("totaal","grouphdr")]);
+  // koprij — spanning op brede kolommen: #(1) naam(5) gr.fase(4) KO(3) totaal(3)
+  rows.push([C("#","grouphdr"),C("Naam","grouphdr",5),C("Groepsfase","grouphdr",4),C("KO-rondes","grouphdr",3),C("Totaal","grouphdr",3)]);
   const data=DEELNEMERS.map(n=>({naam:n,...computeScore(n)})).sort((a,b)=>b.totaal-a.totaal);
   let lastPts=null;
   data.forEach((d,i)=>{
     const rank = d.totaal===lastPts ? "." : String(i+1);
     if(d.totaal!==lastPts) lastPts=d.totaal;
     const medal=(rank==="1")?"🥇 ":(rank==="2")?"🥈 ":(rank==="3")?"🥉 ":"";
+    const me=d.naam==="Floris";
     rows.push([
-      C(rank,"standrank"),C(medal+d.naam,d.naam==="Floris"?"me":"",3),
-      C(String(d.voorrondes),"center"+(d.naam==="Floris"?" me":"")),
-      C(String(d.finalerondes),"center"+(d.naam==="Floris"?" me":"")),
-      C(String(d.totaal),"pt"),
+      C(rank,"standrank"),
+      C(medal+d.naam,me?"me":"",5),
+      C(String(d.voorrondes),"center"+(me?" me":""),4),
+      C(String(d.finalerondes),"center"+(me?" me":""),3),
+      C(String(d.totaal),"pt"+(me?" me":""),3),
     ]);
   });
   rows.push([]);
   // statistiek
   const f=UITSLAGEN.facts;
-  rows.push([C("Statistieken","lbl",6)]);
-  rows.push([C("Totaal goals:","lbl-r",2),C(f.totalGoals??"—","center")]);
-  rows.push([C("Gele kaarten:","lbl-r",2),C(f.yellow??"—","center")]);
-  rows.push([C("Rode kaarten:","lbl-r",2),C(f.red??"—","center")]);
-  rows.push([C("Topscorers:","lbl-r",2),C(f.topscorers.filter(Boolean).map((t,i)=>`${i+1}. ${t}`).join("   ")||"—","",4)]);
+  rows.push([C("Statistieken","lbl",16)]);
+  rows.push([C("Totaal goals:","lbl-r",3),C(f.totalGoals??"—","center",3)]);
+  rows.push([C("Gele kaarten:","lbl-r",3),C(f.yellow??"—","center",3)]);
+  rows.push([C("Rode kaarten:","lbl-r",3),C(f.red??"—","center",3)]);
+  rows.push([C("Topscorers:","lbl-r",3),C(f.topscorers.filter(Boolean).map((t,i)=>`${i+1}. ${t}`).join("   ")||"—","",13)]);
   return rows;
 }
 
