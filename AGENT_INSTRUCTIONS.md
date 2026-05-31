@@ -107,6 +107,23 @@ Portugal, DR Congo, Oezbekistan, Colombia, Engeland, Kroatië, Ghana, Panama
 
 ---
 
+## Berekening doorgegane landen per deelnemer
+
+Wanneer je voorspellingen van een deelnemer verwerkt, bereken je **zelf** wie die deelnemer laat doorgaan op basis van de wedstrijdscores — je vertrouwt nooit een apart ingevuld "top2" of "best3" veld.
+
+### Werkwijze:
+1. Neem de voorspelde scores voor alle 6 groepswedstrijden van een groep (`group["A1"]` t/m `group["A6"]`).
+2. Bereken de groepsstand op basis van die scores (3 pt winst, 1 pt gelijkspel, 0 pt verlies; bij gelijkstand: doelsaldo → gescoorde goals → alfabetisch).
+3. De **top 2** van die berekende stand zijn de voorspelde doorgegane landen — dit overschrijft altijd wat er in `top2[groep]` staat.
+4. Doe hetzelfde voor alle 12 groepen.
+5. Voor `best3`: neem de 3e-geëindigden uit elke groep, rangschik ze op punten/doelsaldo, en neem de beste 8.
+6. **Negeer** elk apart ingevuld `top2` of `best3` veld — ook als het al bestaat.
+
+### Waarom:
+Voorspellingen moeten intern consistent zijn. Als iemand voorspelt dat Mexico wint van Zuid-Korea (2-0) maar toch Zuid-Korea als groepswinnaar invult, klopt dat niet. De scores zijn leidend.
+
+---
+
 ## Richtlijnen
 
 - **Wees conservatief**: bij twijfel over een uitslag, voeg die niet toe en noteer het in de commit message.
