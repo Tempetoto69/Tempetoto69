@@ -170,7 +170,7 @@ const PUNTENTELLING = [
 //   ko:       { R32:["2-1",...], R16:[...], ... } uitslag na 90'
 // ============================================================
 const DEELNEMERS = [
-  "Floris","AI Kees","Mark","Huttenhuis","Smit","EJ","Gautier","Slotboom","Pieter","Giezen"
+  "EJ","Floris","Gautier","Giezen","Huttenhuis","Mark","Pieter","Slotboom","Smit","AI Kees"
 ];
 
 // leeg sjabloon per deelnemer (wordt gevuld zodra voorspellingen binnen zijn)
