@@ -388,18 +388,22 @@ function participantRows(naam){
     push(C(`${round.naam}  ·  toto ${round.toto} / exact +${round.exact}`,"lbl",NCOLS));
     if(!br.length){
       push(C("— wedstrijden worden later aangevuld —","subhdr",NCOLS));
+      rows.push(subRow(`Subtotaal ${round.naam}:`, 0, "pt"));
       continue;
     }
     push(C(""),C(""),C("voorsp.","subhdr"),C("uitslag","subhdr"),C("pt.","subhdr"));
+    let roundPts=0;
     br.forEach((duel,i)=>{
       const pred=(v.ko[round.key]||[])[i]||"";
       const res=(u.ko.results[round.key]||[])[i]||"";
       const pts=scoreKo(pred,res,round);
+      if(res) roundPts+=pts;
       const r=[];
       r.push(C(flagName(duel.home)+" – "+flagName(duel.away),"team",2));
       r.push(C(pred||"","pred"));r.push(C(res||"","res"));r.push(C(res?String(pts):"","pt"+(pts>0?" good":" zero")));
       rows.push(r);
     });
+    rows.push(subRow(`Subtotaal ${round.naam}:`, roundPts, "pt"));
   }
   empty();
 

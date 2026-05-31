@@ -195,24 +195,48 @@ const UITSLAGEN = {
   ko:{
     brackets:{
       R32:[
-        {home:"1A", away:"3e (C/E/F/H/I)"},
-        {home:"1B", away:"3e (E/F/G/I/J)"},
-        {home:"1C", away:"2F"},
-        {home:"1D", away:"3e (B/E/F/I/J)"},
-        {home:"1E", away:"3e (A/B/C/D/F)"},
-        {home:"1F", away:"2C"},
-        {home:"1G", away:"3e (A/E/H/I/J)"},
-        {home:"1H", away:"2J"},
-        {home:"1I", away:"3e (C/D/F/G/H)"},
-        {home:"1J", away:"2H"},
-        {home:"1K", away:"3e (D/E/I/J/L)"},
-        {home:"1L", away:"3e (E/H/I/J/K)"},
-        {home:"2A", away:"2B"},
-        {home:"2D", away:"2G"},
-        {home:"2E", away:"2I"},
-        {home:"2K", away:"2L"},
+        // Volgorde = FIFA wedstrijdnummers 73-88
+        {home:"2A",  away:"2B"},               // M73
+        {home:"1E",  away:"3e (A/B/C/D/F)"},   // M74
+        {home:"1F",  away:"2C"},               // M75
+        {home:"1C",  away:"2F"},               // M76
+        {home:"1I",  away:"3e (C/D/F/G/H)"},   // M77
+        {home:"2E",  away:"2I"},               // M78
+        {home:"1A",  away:"3e (C/E/F/H/I)"},   // M79
+        {home:"1L",  away:"3e (E/H/I/J/K)"},   // M80
+        {home:"1D",  away:"3e (B/E/F/I/J)"},   // M81
+        {home:"1G",  away:"3e (A/E/H/I/J)"},   // M82
+        {home:"2K",  away:"2L"},               // M83
+        {home:"1H",  away:"2J"},               // M84
+        {home:"1B",  away:"3e (E/F/G/I/J)"},   // M85
+        {home:"1J",  away:"2H"},               // M86
+        {home:"1K",  away:"3e (D/E/I/J/L)"},   // M87
+        {home:"2D",  away:"2G"},               // M88
       ],
-      R16:[],KF:[],HF:[],F:[]
+      R16:[
+        // M89-96 — W = Winnaar R32 match N
+        {home:"W R32-2",  away:"W R32-5"},     // M89
+        {home:"W R32-1",  away:"W R32-3"},     // M90
+        {home:"W R32-4",  away:"W R32-6"},     // M91
+        {home:"W R32-7",  away:"W R32-8"},     // M92
+        {home:"W R32-11", away:"W R32-12"},    // M93
+        {home:"W R32-9",  away:"W R32-10"},    // M94
+        {home:"W R32-14", away:"W R32-16"},    // M95
+        {home:"W R32-13", away:"W R32-15"},    // M96
+      ],
+      KF:[
+        {home:"W R16-1", away:"W R16-2"},      // M97
+        {home:"W R16-5", away:"W R16-6"},      // M98
+        {home:"W R16-3", away:"W R16-4"},      // M99
+        {home:"W R16-7", away:"W R16-8"},      // M100
+      ],
+      HF:[
+        {home:"W KF-1", away:"W KF-2"},        // M101
+        {home:"W KF-3", away:"W KF-4"},        // M102
+      ],
+      F:[
+        {home:"W HF-1", away:"W HF-2"},        // M104
+      ],
     },
     results:{R32:[],R16:[],KF:[],HF:[],F:[]}
   },
