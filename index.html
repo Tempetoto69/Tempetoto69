@@ -616,12 +616,12 @@ function alltimeRows(){
     jaren.forEach(j => {
       const s = d.scores[j];
       const winnaar = s > 0 && s === maxPerJaar[j];
-      const txt = s > 0 ? (winnaar ? "🥇 "+s : String(s)) : "—";
-      r.push(C(txt, s>0?"center":"delta-zero center"));
+      const txt = s > 0 ? (winnaar ? "🥇"+s : String(s)) : "—";
+      r.push(C(txt, s>0?"right":"delta-zero center"));
     });
-    const cls26 = !d.deelnemer2026 ? "delta-zero center" : d.pts2026>0 ? "center" : "delta-zero center";
+    const cls26 = !d.deelnemer2026 ? "delta-zero center" : d.pts2026>0 ? "right" : "delta-zero center";
     const win26 = d.pts2026 > 0 && d.pts2026 === max2026;
-    const txt26 = d.deelnemer2026 ? (win26 ? "🥇 "+d.pts2026 : String(d.pts2026)) : "—";
+    const txt26 = d.deelnemer2026 ? (win26 ? "🥇"+d.pts2026 : String(d.pts2026)) : "—";
     r.push(C(txt26, cls26));
     r.push(C(String(d.totaal),"pt"));
     rows.push(r);
