@@ -20,6 +20,7 @@ EJ, Floris, Gautier, Giezen, Huttenhuis, Mark, Pieter, Slotboom, Smit, **AI Kees
 | `make_invulformulier.py` | Genereert het Excel invulformulier |
 | `tempetoto2026_invulformulier.xlsx` | Excel-template voor deelnemers |
 | `banner.png` | Header-afbeelding (ook in het Excel-formulier) |
+| `AI_KEES_PROFIEL.md` | Volledig karakterprofiel + system prompt basis voor AI Kees |
 
 ## Data structuur (data.js)
 - `GROUPS` — 12 groepen A-L, 48 landen
@@ -91,12 +92,11 @@ cron (elk uur, lokale machine)
 - Post berichten als: "Slotboom klimt naar plek 2! 🔥"
 - Analyseert standsveranderingen en genereert commentaar via Claude API
 
-**4b. AI Kees** *(psychologisch profiel nog te maken door Floris)*
+**4b. AI Kees** *(profiel vastgelegd in `AI_KEES_PROFIEL.md`)*
 - Volwaardige deelnemer in de poule
-- Doet voorspellingen zoals de menselijke deelnemers
 - Praat in de Telegram-groep als AI Kees: reageert op uitslagen, plaagt deelnemers
-- Karakter: ❓ *nog in te vullen door Floris*
-- Getriggerd door: nieuwe uitslag, directe mention, slecht nieuws voor zijn voorspelling
+- Getriggerd door: nieuwe uitslag, directe mention, slecht nieuws voor eigen voorspelling
+- Karakter: master Finance, piratenmasker, contrair, intelligente droge humor, finance-lens op voetbal (puts/calls/volatiliteit), macro-economisch wereldbeeld, zuur over hype en populaire meningen
 
 **Telegram-groep:** nog aan te maken door Floris
 
