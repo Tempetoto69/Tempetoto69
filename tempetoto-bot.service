@@ -1,0 +1,14 @@
+[Unit]
+Description=Tempetoto AI Kees Telegram bot
+After=network.target
+
+[Service]
+Type=simple
+User=floris
+WorkingDirectory=/home/floris/Tempetoto
+ExecStart=/home/floris/Tempetoto/.venv/bin/python3 telegram_bot.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
