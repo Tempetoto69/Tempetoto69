@@ -9,7 +9,7 @@ WK 2026 voetbalpoule voor een vriendengroep van 10 mensen. Statische HTML/JS web
 - **Hosting machine:** altijd aan, maar kan geen LLM lokaal draaien → Claude API voor intelligentie
 
 ## Deelnemers (10)
-EJ, Floris, Gautier, Giezen, Huttenhuis, Mark, Pieter, Slotboom, Smit, **AI Kees**
+EJ, Floris, Daniel, Giezen, Huttenhuis, Mark, Pieter, Slotboom, Smit, **AI Kees**
 
 ## Bestanden
 | Bestand | Doel |

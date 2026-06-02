@@ -169,7 +169,7 @@ const PUNTENTELLING = [
 //   ko:       { R32:["2-1",...], R16:[...], ... } uitslag na 90'
 // ============================================================
 const DEELNEMERS = [
-  "EJ","Floris","Gautier","Giezen","Huttenhuis","Mark","Pieter","Slotboom","Smit","AI Kees"
+  "EJ","Floris","Daniel","Giezen","Huttenhuis","Mark","Pieter","Slotboom","Smit","AI Kees"
 ];
 
 // leeg sjabloon per deelnemer (wordt gevuld zodra voorspellingen binnen zijn)
@@ -256,10 +256,10 @@ const ALLTIME_DATA = {
     { naam:"Smit",       scores:{2006:141,2008:90, 2010:195,2012:70, 2014:249,2016:175}, deelnemer2026:"Smit" },
     { naam:"AI Kees",    scores:{2006:132,2008:96, 2010:253,2012:0,  2014:197,2016:206}, deelnemer2026:"AI Kees" },
     { naam:"Pieter",     scores:{2006:128,2008:76, 2010:212,2012:75, 2014:214,2016:126}, deelnemer2026:"Pieter" },
-    { naam:"Gautier",    scores:{2006:125,2008:76, 2010:171,2012:52, 2014:208,2016:154}, deelnemer2026:"Gautier" },
-    { naam:"Odding",     scores:{2006:132,2008:56, 2010:228,2012:59, 2014:174,2016:128}, deelnemer2026:"Floris" },
+    { naam:"Daniel",     scores:{2006:125,2008:76, 2010:171,2012:52, 2014:208,2016:154}, deelnemer2026:"Daniel" },
+    { naam:"Floris",     scores:{2006:132,2008:56, 2010:228,2012:59, 2014:174,2016:128}, deelnemer2026:"Floris" },
     { naam:"Giezen",     scores:{2006:112,2008:111,2010:234,2012:0,  2014:208,2016:0  }, deelnemer2026:"Giezen" },
-    { naam:"Brandt",     scores:{2006:125,2008:48, 2010:191,2012:0,  2014:0,  2016:0  }, deelnemer2026:null },
+    { naam:"Hugo",       scores:{2006:125,2008:48, 2010:191,2012:0,  2014:0,  2016:0  }, deelnemer2026:null },
     { naam:"Buisman",    scores:{2006:127,2008:38, 2010:0,  2012:0,  2014:0,  2016:0  }, deelnemer2026:null },
   ],
 };
