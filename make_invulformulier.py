@@ -393,8 +393,12 @@ def build_sheet(ws, ls):  # ls = naam van het Landen-sheet
         c.font, c.alignment = fnt(bold=True, color="2A5298"), AL_L
         row += 1
 
-        # Kolomkoppen per ronde
+        # Kolomkoppen per ronde — volledige rij vullen zodat niets doorloopt
         rh(ws, row, 14)
+        for col in range(1, NCOLS + 1):
+            ws.cell(row=row, column=col).fill = FILL_HDR
+        c = mc(ws, row, C_CLR1, C_AWAY)
+        c.value, c.font, c.fill, c.alignment = "Wedstrijd", fnt(bold=True, color="777777", size=9), FILL_HDR, AL_C
         for col, txt in [(C_PRED,"voorsp."),(C_RES,"uitslag"),(C_PT,"pt.")]:
             c = ws.cell(row=row, column=col)
             c.value, c.font, c.fill, c.alignment = txt, fnt(bold=True, color="777777", size=9), FILL_HDR, AL_C
