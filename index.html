@@ -581,6 +581,13 @@ function alltimeRows(){
   let cr=0, cLast=-1;
   data.forEach((d,i) => { if(d.totaal!==cLast){cLast=d.totaal;cr=i+1;} currRank[d.naam]=cr; });
 
+  // Winnaar(s) per jaar — voor goud-emoji in de cel
+  const maxPerJaar = {};
+  jaren.forEach(j => {
+    maxPerJaar[j] = Math.max(...data.map(d => d.scores[j] || 0));
+  });
+  const max2026 = Math.max(...data.filter(d=>d.deelnemer2026).map(d=>d.pts2026));
+
   const rows = [];
   rows.push([C("All Time Tempetoto Ranking","title-cell",12)]);
   rows.push([]);
@@ -608,10 +615,14 @@ function alltimeRows(){
     const r = [C(String(rankNr),"standrank"),C(trendTxt,trendCls),C(medal+d.naam,"",2)];
     jaren.forEach(j => {
       const s = d.scores[j];
-      r.push(C(s>0?String(s):"—", s>0?"center":"delta-zero center"));
+      const winnaar = s > 0 && s === maxPerJaar[j];
+      const txt = s > 0 ? (winnaar ? "🥇 "+s : String(s)) : "—";
+      r.push(C(txt, s>0?"center":"delta-zero center"));
     });
     const cls26 = !d.deelnemer2026 ? "delta-zero center" : d.pts2026>0 ? "center" : "delta-zero center";
-    r.push(C(d.deelnemer2026?String(d.pts2026):"—", cls26));
+    const win26 = d.pts2026 > 0 && d.pts2026 === max2026;
+    const txt26 = d.deelnemer2026 ? (win26 ? "🥇 "+d.pts2026 : String(d.pts2026)) : "—";
+    r.push(C(txt26, cls26));
     r.push(C(String(d.totaal),"pt"));
     rows.push(r);
   });
