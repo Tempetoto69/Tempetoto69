@@ -376,13 +376,20 @@ def build_sheet(ws, ls):  # ls = naam van het Landen-sheet
         c.font, c.alignment = fnt(bold=True, color="2A5298"), AL_L
         row += 1
 
+        # Kolomkoppen per ronde
+        rh(ws, row, 14)
+        for col, txt in [(C_PRED,"voorsp."),(C_RES,"uitslag"),(C_PT,"pt.")]:
+            c = ws.cell(row=row, column=col)
+            c.value, c.font, c.fill, c.alignment = txt, fnt(bold=True, color="777777", size=9), FILL_HDR, AL_C
+        row += 1
+
         brackets = KO_BRACKETS[ronde['key']]
         for home, away in brackets:
             rh(ws, row, 16)
             c = mc(ws, row, C_CLR1, C_AWAY)
             c.value = f"{home}  –  {away}"
             c.font, c.fill, c.border, c.alignment = fnt(italic=True, color="888888"), FILL_GREY, BORD_GREY, AL_L
-            grey(ws, row, C_PRED, text="")   # invulvak komt later
+            grey(ws, row, C_PRED, text="")
             grey(ws, row, C_RES)
             grey(ws, row, C_PT)
             row += 1
