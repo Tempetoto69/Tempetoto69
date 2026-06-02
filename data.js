@@ -47,14 +47,14 @@ const TEAMCOLORS = {
   "Mexico":"#006847","Zuid-Afrika":"#ffb612","Zuid-Korea":"#cd2e3a","Tsjechië":"#11457e",
   // Groep B
   "Canada":"#ff0000","Zwitserland":"#000000","Qatar":"#8a1538","Bosnië-Herzegovina":"#002395",
-  // Groep C
-  "Brazilië":"#009c3b","Marokko":"#c1272d","Haïti":"#00209f","Schotland":"#5fb0e5",
-  // Groep D
-  "Verenigde Staten":"#3c3b6e","Paraguay":"#d52b1e","Australië":"#ffcd00","Turkije":"#111111",
-  // Groep E
-  "Duitsland":"#000000","Curaçao":"#002b7f","Ivoorkust":"#f77f00","Ecuador":"#ed1c24",
-  // Groep F
-  "Nederland":"#ff6a13","Japan":"#bc002d","Zweden":"#006aa7","Tunesië":"#111111",
+  // Groep C — Brazilië draagt geel
+  "Brazilië":"#fcd116","Marokko":"#c1272d","Haïti":"#00209f","Schotland":"#5fb0e5",
+  // Groep D — Paraguay blauw (vlag), Turkije rood (shirt)
+  "Verenigde Staten":"#3c3b6e","Paraguay":"#002b7f","Australië":"#ffcd00","Turkije":"#e30a17",
+  // Groep E — Ecuador geel (shirt)
+  "Duitsland":"#000000","Curaçao":"#002b7f","Ivoorkust":"#f77f00","Ecuador":"#ffd700",
+  // Groep F — Japan blauw (shirt), Zweden geel, Tunesië rood
+  "Nederland":"#ff6a13","Japan":"#003399","Zweden":"#fecc02","Tunesië":"#e70013",
   // Groep G
   "België":"#fdda24","Egypte":"#ce1126","Iran":"#239f40","Nieuw-Zeeland":"#00247d",
   // Groep H
@@ -63,10 +63,10 @@ const TEAMCOLORS = {
   "Frankrijk":"#0055a4","Senegal":"#00853f","Noorwegen":"#ba0c2f","Irak":"#111111",
   // Groep J
   "Argentinië":"#74acdf","Algerije":"#006233","Oostenrijk":"#ed2939","Jordanië":"#000000",
-  // Groep K
-  "Portugal":"#006600","DR Congo":"#00aaff","Oezbekistan":"#1eb53a","Colombia":"#fcd116",
-  // Groep L
-  "Engeland":"#ce1124","Kroatië":"#1742a0","Ghana":"#ffd100","Panama":"#111111",
+  // Groep K — Portugal rood (shirt)
+  "Portugal":"#cc0000","DR Congo":"#00aaff","Oezbekistan":"#1eb53a","Colombia":"#fcd116",
+  // Groep L — Engeland wit (thuis), Kroatië rood (shirt)
+  "Engeland":"#e0e0e0","Kroatië":"#c8102e","Ghana":"#ffd100","Panama":"#111111",
 };
 
 // Round-robin volgorde per groep (4 teams): bepaalt de 6 wedstrijden
@@ -243,6 +243,32 @@ const UITSLAGEN = {
   facts:{ champion:"", finalist:"", topscorers:["","",""], topscorerGoals:null, totalGoals:null, yellow:null, red:null },
 };
 
+// ============================================================
+//  ALL TIME RANKING — historische editie-scores
+//  deelnemer2026: koppeling naar DEELNEMERS-naam voor de 2026-score
+// ============================================================
+const ALLTIME_DATA = {
+  jaren: [2006, 2008, 2010, 2012, 2014, 2016],
+  deelnemers: [
+    { naam:"ten Dam",    scores:{2006:173,2008:111,2010:244,2012:114,2014:231,2016:175}, deelnemer2026:null },
+    { naam:"Huttenhuis", scores:{2006:158,2008:109,2010:235,2012:125,2014:231,2016:190}, deelnemer2026:"Huttenhuis" },
+    { naam:"Wierenga",   scores:{2006:141,2008:90, 2010:248,2012:132,2014:222,2016:197}, deelnemer2026:null },
+    { naam:"Slotboom",   scores:{2006:162,2008:100,2010:223,2012:105,2014:215,2016:146}, deelnemer2026:"Slotboom" },
+    { naam:"Smit",       scores:{2006:141,2008:90, 2010:195,2012:70, 2014:249,2016:175}, deelnemer2026:"Smit" },
+    { naam:"Liefkens",   scores:{2006:132,2008:96, 2010:253,2012:0,  2014:197,2016:206}, deelnemer2026:null },
+    { naam:"Scherphof",  scores:{2006:128,2008:76, 2010:212,2012:75, 2014:214,2016:126}, deelnemer2026:null },
+    { naam:"Gautier",    scores:{2006:125,2008:76, 2010:171,2012:52, 2014:208,2016:154}, deelnemer2026:"Gautier" },
+    { naam:"Odding",     scores:{2006:132,2008:56, 2010:228,2012:59, 2014:174,2016:128}, deelnemer2026:"Floris" },
+    { naam:"Giezen",     scores:{2006:112,2008:111,2010:234,2012:0,  2014:208,2016:0  }, deelnemer2026:"Giezen" },
+    { naam:"Brandt",     scores:{2006:125,2008:48, 2010:191,2012:0,  2014:0,  2016:0  }, deelnemer2026:null },
+    { naam:"Buisman",    scores:{2006:127,2008:38, 2010:0,  2012:0,  2014:0,  2016:0  }, deelnemer2026:null },
+    { naam:"EJ",         scores:{}, deelnemer2026:"EJ" },
+    { naam:"Mark",       scores:{}, deelnemer2026:"Mark" },
+    { naam:"Pieter",     scores:{}, deelnemer2026:"Pieter" },
+    { naam:"AI Kees",    scores:{}, deelnemer2026:"AI Kees" },
+  ],
+};
+
 if(typeof module!=="undefined"){
-  module.exports={GROUPS,GROUP_MATCHES,KO_ROUNDS,SCORING,FAVORITES,OUTSIDERS,DEELNEMERS,VOORSPELLINGEN,UITSLAGEN};
+  module.exports={GROUPS,GROUP_MATCHES,KO_ROUNDS,SCORING,FAVORITES,OUTSIDERS,DEELNEMERS,VOORSPELLINGEN,UITSLAGEN,ALLTIME_DATA};
 }

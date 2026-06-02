@@ -245,20 +245,21 @@ function computeScore(naam){
 const NCOLS = 20; // A..T
 function colLetter(i){ let s="";i++;while(i>0){i--;s=String.fromCharCode(65+i%26)+s;i=Math.floor(i/26);}return s; }
 
-function renderGrid(rows){
+function renderGrid(rows, opts){
+  const ncols = (opts && opts.ncols) || NCOLS;
+  const widths = (opts && opts.widths) || [34, 16,80, 16,80, 62,62,32, 14, 16,80, 16,80, 62,62,32, 32,32,32,32,32];
   const sheet=document.getElementById("sheet");
   const tbl=document.createElement("table");tbl.className="sheet";
   // kolombreedtes
   const colgroup=document.createElement("colgroup");
-  const widths=[34, 16,80, 16,80, 62,62,32, 14, 16,80, 16,80, 62,62,32, 32,32,32,32,32];
   let totalW=0;
-  for(let i=0;i<=NCOLS;i++){const w=widths[i]||32;const col=document.createElement("col");col.style.width=w+"px";colgroup.append(col);totalW+=w;}
+  for(let i=0;i<=ncols;i++){const w=widths[i]||32;const col=document.createElement("col");col.style.width=w+"px";colgroup.append(col);totalW+=w;}
   tbl.append(colgroup);
-  tbl.style.width=totalW+"px";   // vaste totaalbreedte -> fixed layout respecteert kolombreedtes exact
+  tbl.style.width=totalW+"px";
   // kolomkoppen
   const head=document.createElement("tr");
   head.append(cell("","corner"));
-  for(let i=0;i<NCOLS;i++) head.append(cell(colLetter(i),"colhead"));
+  for(let i=0;i<ncols;i++) head.append(cell(colLetter(i),"colhead"));
   tbl.append(head);
   // datarijen
   rows.forEach((row,ri)=>{
@@ -274,7 +275,7 @@ function renderGrid(rows){
       if(c.title)td.title=c.title;
       tr.append(td);
     });
-    for(;used<NCOLS;used++) tr.append(document.createElement("td"));
+    for(;used<ncols;used++) tr.append(document.createElement("td"));
     tbl.append(tr);
   });
   sheet.innerHTML="";sheet.append(tbl);
@@ -559,10 +560,69 @@ function standRows(){
   return rows;
 }
 
+// ---------- ALL TIME RANKING ----------
+function alltimeRows(){
+  const jaren = ALLTIME_DATA.jaren;
+
+  const data = ALLTIME_DATA.deelnemers.map(d => {
+    const histTotaal = jaren.reduce((s,j) => s + (d.scores[j] || 0), 0);
+    const pts2026 = d.deelnemer2026 ? computeScore(d.deelnemer2026).totaal : 0;
+    return {...d, histTotaal, pts2026, totaal: histTotaal + pts2026};
+  });
+
+  // Historische ranking (voor trendberekening)
+  const byhist = [...data].sort((a,b) => b.histTotaal - a.histTotaal);
+  const histRank = {};
+  let hr=0, hLast=-1;
+  byhist.forEach((d,i) => { if(d.histTotaal!==hLast){hLast=d.histTotaal;hr=i+1;} histRank[d.naam]=hr; });
+
+  data.sort((a,b) => b.totaal - a.totaal);
+  const currRank = {};
+  let cr=0, cLast=-1;
+  data.forEach((d,i) => { if(d.totaal!==cLast){cLast=d.totaal;cr=i+1;} currRank[d.naam]=cr; });
+
+  const rows = [];
+  rows.push([C("All Time Tempetoto Ranking","title-cell",12)]);
+  rows.push([]);
+
+  const hdr = [C("#","grouphdr"),C("","grouphdr"),C("Naam","grouphdr",2)];
+  jaren.forEach(j => hdr.push(C(String(j),"grouphdr")));
+  hdr.push(C("2026","grouphdr"),C("Totaal","grouphdr"));
+  rows.push(hdr);
+
+  let lastTotaal=null, rankNr=0;
+  data.forEach((d,i) => {
+    if(d.totaal!==lastTotaal){lastTotaal=d.totaal;rankNr=i+1;}
+
+    const isNieuw = Object.keys(d.scores).length === 0;
+    let trendTxt="", trendCls="delta-zero";
+    if(isNieuw){ trendTxt="★"; }
+    else {
+      const prev=histRank[d.naam], curr=currRank[d.naam];
+      if(curr<prev){trendTxt="↑";trendCls="delta-up";}
+      else if(curr>prev){trendTxt="↓";trendCls="delta-down";}
+      else trendTxt="=";
+    }
+
+    const medal = rankNr===1?"🥇 ":rankNr===2?"🥈 ":rankNr===3?"🥉 ":"";
+    const r = [C(String(rankNr),"standrank"),C(trendTxt,trendCls),C(medal+d.naam,"",2)];
+    jaren.forEach(j => {
+      const s = d.scores[j];
+      r.push(C(s>0?String(s):"—", s>0?"center":"delta-zero center"));
+    });
+    const cls26 = !d.deelnemer2026 ? "delta-zero center" : d.pts2026>0 ? "center" : "delta-zero center";
+    r.push(C(d.deelnemer2026?String(d.pts2026):"—", cls26));
+    r.push(C(String(d.totaal),"pt"));
+    rows.push(r);
+  });
+
+  return rows;
+}
+
 // ---------- TABS ----------
 function renderTabs(){
   const tabs=document.getElementById("tabs");tabs.innerHTML="";
-  const all=["Stand",...DEELNEMERS];
+  const all=["Stand",...DEELNEMERS,"All Time"];
   all.forEach(name=>{
     const b=document.createElement("button");
     b.textContent=name;b.className=name===CURRENT?"active":"";
@@ -572,8 +632,13 @@ function renderTabs(){
 }
 function draw(){
   renderTabs();
-  document.getElementById("namestrip").textContent = CURRENT==="Stand"?"Stand":"Voorspellingen — "+CURRENT;
-  renderGrid(CURRENT==="Stand"?standRows():participantRows(CURRENT));
+  document.getElementById("namestrip").textContent =
+    CURRENT==="Stand" ? "Stand" :
+    CURRENT==="All Time" ? "All Time Tempetoto Ranking" :
+    "Voorspellingen — "+CURRENT;
+  if(CURRENT==="Stand") renderGrid(standRows());
+  else if(CURRENT==="All Time") renderGrid(alltimeRows(),{ncols:12,widths:[34,36,28,60,60,44,44,44,44,44,44,50,60]});
+  else renderGrid(participantRows(CURRENT));
   document.querySelector(".sheetwrap").scrollTop=0;
 }
 draw();
