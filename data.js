@@ -43,25 +43,25 @@ const FLAGS = {
 // Kleurblokje per land — nationale primaire kleur (shirt/vlag)
 const TEAMCOLORS = {
   // Groep A
-  "Mexico":"#006847","Zuid-Afrika":"#ffb612","Zuid-Korea":"#cd2e3a","Tsjechië":"#11457e",
+  "Mexico":"#006847","Zuid-Afrika":"#ffb612","Zuid-Korea":"#cd2e3a","Tsjechië":"#d7141a",
   // Groep B
   "Canada":"#ff0000","Zwitserland":"#d52b1e","Qatar":"#8a1538","Bosnië-Herzegovina":"#002395",
   // Groep C
   "Brazilië":"#fcd116","Marokko":"#c1272d","Haïti":"#00209f","Schotland":"#003da5",
   // Groep D
-  "Verenigde Staten":"#002868","Paraguay":"#002b7f","Australië":"#ffcd00","Turkije":"#e30a17",
+  "Verenigde Staten":"#002868","Paraguay":"#cf2229","Australië":"#ffcd00","Turkije":"#e30a17",
   // Groep E
   "Duitsland":"#000000","Curaçao":"#002b7f","Ivoorkust":"#f77f00","Ecuador":"#ffd700",
   // Groep F
   "Nederland":"#ff6a13","Japan":"#003399","Zweden":"#fecc02","Tunesië":"#e70013",
   // Groep G
-  "België":"#fdda24","Egypte":"#ce1126","Iran":"#239f40","Nieuw-Zeeland":"#00247d",
+  "België":"#e30613","Egypte":"#ce1126","Iran":"#239f40","Nieuw-Zeeland":"#00247d",
   // Groep H
   "Spanje":"#aa151b","Kaapverdië":"#003893","Saoedi-Arabië":"#006c35","Uruguay":"#5b92e5",
   // Groep I
   "Frankrijk":"#0055a4","Senegal":"#00853f","Noorwegen":"#ba0c2f","Irak":"#ce1126",
   // Groep J
-  "Argentinië":"#74acdf","Algerije":"#006233","Oostenrijk":"#ed2939","Jordanië":"#007a3d",
+  "Argentinië":"#74acdf","Algerije":"#006233","Oostenrijk":"#ed2939","Jordanië":"#1a1a1a",
   // Groep K
   "Portugal":"#cc0000","DR Congo":"#007fff","Oezbekistan":"#1eb53a","Colombia":"#fcd116",
   // Groep L
