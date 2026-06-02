@@ -593,8 +593,8 @@ function alltimeRows(){
   rows.push([]);
 
   const hdr = [C("#","grouphdr"),C("","grouphdr"),C("Naam","grouphdr",2)];
-  jaren.forEach(j => hdr.push(C(String(j),"grouphdr")));
-  hdr.push(C("2026","grouphdr"),C("Totaal","grouphdr"));
+  jaren.forEach(j => hdr.push(C(String(j),"grouphdr right")));
+  hdr.push(C("2026","grouphdr right"),C("Totaal","grouphdr right"));
   rows.push(hdr);
 
   let lastTotaal=null, rankNr=0;
