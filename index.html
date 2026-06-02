@@ -648,7 +648,7 @@ function draw(){
     CURRENT==="All Time" ? "All Time Tempetoto Ranking" :
     "Voorspellingen — "+CURRENT;
   if(CURRENT==="Stand") renderGrid(standRows());
-  else if(CURRENT==="All Time") renderGrid(alltimeRows(),{ncols:12,widths:[34,36,28,60,60,44,44,44,44,44,44,50,60]});
+  else if(CURRENT==="All Time") renderGrid(alltimeRows(),{ncols:12,widths:[34,36,28,60,60,62,62,62,62,62,62,62,65]});
   else renderGrid(participantRows(CURRENT));
   document.querySelector(".sheetwrap").scrollTop=0;
 }
