@@ -162,8 +162,10 @@ def fnt(bold=False, color="15233F", size=10, italic=False):
 
 NCOLS = 15
 
-COL_W = {1:2, 2:17, 3:2, 4:17, 5:10, 6:10, 7:5, 8:2,
-         9:2, 10:17, 11:2, 12:17, 13:10, 14:10, 15:5}
+# Kolommen 7-9 breder zodat verrassing/deceptie-tabelkoppen (Finale, Winnaar, Groep eruit) passen.
+# De spacer (8) en kleurblok (9) in de wedstrijdopmaak worden daardoor iets wijder — visueel acceptabel.
+COL_W = {1:2, 2:17, 3:2, 4:17, 5:10, 6:10, 7:11, 8:11, 9:11,
+         10:17, 11:2, 12:17, 13:10, 14:10, 15:11}
 
 # Kolomnamen voor leesbaarheid
 C_CLR1, C_HOME, C_CLR2, C_AWAY, C_PRED, C_RES, C_PT, C_SPC = 1, 2, 3, 4, 5, 6, 7, 8
@@ -268,7 +270,9 @@ def build_sheet(ws, ls):  # ls = naam van het Landen-sheet
     for label_text, formula in prematch:
         rh(ws, row, 18)
         lbl(ws, row, 1, 4, label_text)
-        inp(ws, row, C_PRED)
+        # Merge over 3 kolommen: alle 4 randen volledig zichtbaar
+        c = mc(ws, row, C_PRED, C_PRED + 2)
+        c.fill, c.font, c.border, c.alignment = FILL_INPUT, fnt(bold=True, color="0A2A55"), BORD_INPUT, AL_C
         if formula:
             dropdown(ws, row, C_PRED, formula)
         row += 1
@@ -277,20 +281,26 @@ def build_sheet(ws, ls):  # ls = naam van het Landen-sheet
 
     # ── Spelregels ────────────────────────────────────────────────────────────
     row = sub_hdr(ws, row, "Spelregels:")
-    for regel in SPELREGELS:
-        rh(ws, row, 30)
+    for i, regel in enumerate(SPELREGELS, 1):
+        rh(ws, row, 40)
         c = mc(ws, row, 1, NCOLS)
-        c.value, c.font, c.alignment = "•  " + regel, fnt(color="333333"), AL_W
+        c.value = f"{i}.  {regel}"
+        c.font, c.alignment = fnt(color="333333"), AL_W
         row += 1
     row = empty(ws, row, 8)
 
     # ── Puntentelling ─────────────────────────────────────────────────────────
     row = sub_hdr(ws, row, "Puntentelling:", color="B22234")
     for kop, tekst in PUNTENTELLING:
-        rh(ws, row, 30)
-        lbl(ws, row, 1, 4, kop)
-        c = mc(ws, row, 5, NCOLS)
-        c.value, c.font, c.alignment = tekst, fnt(color="333333"), AL_W
+        # Label-rij
+        rh(ws, row, 16)
+        c = mc(ws, row, 1, NCOLS)
+        c.value, c.font, c.alignment = kop, fnt(bold=True, color="2A5298"), AL_L
+        row += 1
+        # Tekst-rij, licht ingesprongen
+        rh(ws, row, 40)
+        c = mc(ws, row, 2, NCOLS)
+        c.value, c.font, c.alignment = tekst, fnt(color="444444"), AL_W
         row += 1
     row = empty(ws, row, 8)
 
@@ -333,13 +343,13 @@ def build_sheet(ws, ls):  # ls = naam van het Landen-sheet
                 grey(ws, row, pred_col + 2)
             row += 1
 
-        # Groepswinnaar + Runner-up: automatisch berekend
+        # Groepswinnaar + Runner-up: niet invullen, agent berekent uit scores
         for adv_lbl in ["Groepswinnaar:", "Runner-up:"]:
             rh(ws, row, 17)
             lbl(ws, row, C_CLR1, C_AWAY, adv_lbl)
-            grey(ws, row, C_PRED, C_PT, "↳ automatisch berekend")
+            grey(ws, row, C_PRED, C_PT, "↳ niet invullen")
             lbl(ws, row, C_CLR3, C_AWAY2, adv_lbl)
-            grey(ws, row, C_PRED2, C_PT2, "↳ automatisch berekend")
+            grey(ws, row, C_PRED2, C_PT2, "↳ niet invullen")
             row += 1
 
         row = empty(ws, row, 6)
@@ -347,12 +357,12 @@ def build_sheet(ws, ls):  # ls = naam van het Landen-sheet
     row = empty(ws, row, 8)
 
     # ── Beste 8 nummers 3 ─────────────────────────────────────────────────────
-    row = sec_hdr(ws, row, "▶  BESTE 8 NUMMERS 3  ·  automatisch berekend uit je groepsscores — niets invullen")
-    rh(ws, row, 30)
+    row = sec_hdr(ws, row, "▶  BESTE 8 NUMMERS 3  ·  niet invullen — wordt na inlevering door de agent berekend")
+    rh(ws, row, 40)
     c = mc(ws, row, 1, NCOLS)
-    c.value = ("De 8 beste nummers 3 worden automatisch bepaald op basis van de punten en het "
-               "doelsaldo van de nummer-3-landen in jouw groepsvoorspellingen. "
-               "Je hoeft hier zelf niets in te vullen.")
+    c.value = ("De 8 beste nummers 3 worden na inlevering van dit formulier automatisch berekend "
+               "op basis van de punten en het doelsaldo van de nummer-3-landen in jouw groepsscores. "
+               "De Excel zelf rekent dit NIET uit — je hoeft hier niets in te vullen.")
     c.font, c.fill, c.alignment = fnt(italic=True, color="555555"), FILL_GREY, AL_W
     row = empty(ws, row + 1, 8)
 
