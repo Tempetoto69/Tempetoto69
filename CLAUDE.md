@@ -98,7 +98,8 @@ cron (elk uur, lokale machine)
 - Getriggerd door: nieuwe uitslag, directe mention, slecht nieuws voor eigen voorspelling
 - Karakter: master Finance, piratenmasker, contrair, intelligente droge humor, finance-lens op voetbal (puts/calls/volatiliteit), macro-economisch wereldbeeld, zuur over hype en populaire meningen
 
-**Telegram-groep:** nog aan te maken door Floris
+**Telegram-groep:** ✅ aangemaakt — chat ID `-5030253572`, bot `@ai_kees_bot` actief
+**Configuratie:** `/home/floris/Tempetoto/.env` (niet in git)
 
 **Nog te doen:**
 - Floris maakt Telegram-groep aan en voegt deelnemers toe
