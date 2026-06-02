@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Tempetoto 2026 — Excel invulformulier (één template, naam bovenaan invullen)"""
 
+import io
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
+from openpyxl.drawing.image import Image as XLImage
+from PIL import Image as PILImage
 
 # ─── Data (identiek aan data.js) ─────────────────────────────────────────────
 
@@ -234,18 +237,32 @@ def team_name(ws, row, col, name, align=AL_L):
 
 def build_sheet(ws, ls):  # ls = naam van het Landen-sheet
     set_col_widths(ws)
-    ws.sheet_view.showGridLines = False
-    row = 1
+    ws.sheet_view.showGridLines = True
+
+    # ── Banner ────────────────────────────────────────────────────────────────
+    BANNER_ROWS = 5
+    BANNER_PT   = 56  # hoogte per rij in punten (5 × 56pt ≈ 280pt ≈ 373px)
+    for r in range(1, BANNER_ROWS + 1):
+        rh(ws, r, BANNER_PT)
+
+    pil = PILImage.open('/home/floris/Tempetoto/banner.png')
+    bw, bh = 1200, round(1200 / (pil.width / pil.height))
+    pil = pil.resize((bw, bh), PILImage.LANCZOS)
+    buf = io.BytesIO()
+    pil.save(buf, format='PNG')
+    buf.seek(0)
+    xl_img = XLImage(buf)
+    xl_img.width, xl_img.height = bw, bh
+    ws.add_image(xl_img, 'A1')
+
+    row = BANNER_ROWS + 1
 
     # ── Naam ─────────────────────────────────────────────────────────────────
-    rh(ws, row, 32)
-    t = mc(ws, row, 1, 4)
-    t.value, t.font, t.alignment = "TEMPETOTO 2026", fnt(bold=True, color="0A1F47", size=16), AL_L
+    rh(ws, row, 28)
+    lbl_c = mc(ws, row, 1, 3)
+    lbl_c.value, lbl_c.font, lbl_c.alignment = "Naam deelnemer:", fnt(bold=True, color="2A5298", size=11), AL_R
 
-    lbl_c = mc(ws, row, 5, 6)
-    lbl_c.value, lbl_c.font, lbl_c.alignment = "Naam:", fnt(bold=True, color="2A5298", size=12), AL_R
-
-    naam = mc(ws, row, 7, 11)
+    naam = mc(ws, row, 4, 10)
     naam.fill, naam.font, naam.border, naam.alignment = FILL_YELLOW, fnt(bold=True, color="0A1F47", size=13), BORD_NAAM, AL_C
 
     row = empty(ws, row + 1, 8)
