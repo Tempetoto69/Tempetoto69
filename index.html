@@ -297,15 +297,14 @@ function participantRows(naam){
   // ===== Vooraf voorspeld — nu links/bovenaan (kolommen A-G) =====
   const pre=v.prematch;
   const champPts = pre.champion&&u.facts.champion ? (pre.champion===u.facts.champion?SCORING.champion.winner:(pre.champion===u.facts.finalist?SCORING.champion.finalist:0)) : 0;
-  const preRow=(label,val,pts,extra)=>{
+  const preRow=(label,val,pts)=>{
     const r=[];
-    r.push(C(label,"lbl-r",2));            // A-B label
-    r.push(C(val||"","pred",2));            // C-D waarde (leeg = nog niet)
-    r.push(C(extra!=null?extra:"","center")); // E extra
-    r.push(C(pts!=null?String(pts):"",pts>0?"pt-red":"pt zero")); // F punten (rood zoals origineel)
+    r.push(C(label,"lbl-r",4));   // cols 1-4: label (genoeg ruimte)
+    r.push(C(val||"","pred",2));  // cols 5-6: waarde
+    r.push(C(pts!=null?String(pts):"",pts>0?"pt-red":"pt zero")); // col 7: punten
     return r;
   };
-  rows.push([C("Vooraf voorspeld","grouphdr",6)]);
+  rows.push([C("Vooraf voorspeld","grouphdr",7)]);
   rows.push(preRow("Kampioen:",flagName(pre.champion),champPts));
   rows.push(preRow("Verrassing:",flagName(pre.surprise),pre.surprise?surprisePts(pre.surprise):0));
   rows.push(preRow("Deceptie:",flagName(pre.deception),pre.deception?deceptionPts(pre.deception):0));
