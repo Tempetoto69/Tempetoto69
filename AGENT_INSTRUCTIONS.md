@@ -51,9 +51,15 @@ Gebruik de volgende bronnen **in deze volgorde van prioriteit**:
 3. **Verifieer** elke nieuwe uitslag bij een tweede bron.
 4. **Vergelijk** de gevonden uitslagen met wat al in `data.js` staat.
 5. **Pas alleen aan wat nieuw is** — verander nooit bestaande uitslagen tenzij je een duidelijke fout ziet.
-6. **Valideer** de data vóór je commit: controleer of scores het formaat `"thuis-uit"` hebben (bijv. `"2-1"`).
-7. **Commit en push** met een duidelijke commit message die vermeldt welke wedstrijden zijn bijgewerkt.
-8. **Doe niets** als er geen nieuwe uitslagen zijn — maak geen lege commits.
+6. **Haal toernooiStats op** via `get_tournament_stats` met de datum van vandaag:
+   - Werk `UITSLAGEN.facts.topscorers` en `UITSLAGEN.facts.topscorerGoals` bij als de topscorer veranderd is.
+   - Tel de opgehaalde kaarten op bij `UITSLAGEN.facts.yellow` en `UITSLAGEN.facts.red`
+     (deze waarden zijn running totals — tel alleen kaarten van wedstrijden die NIEUW zijn t.o.v. vorige update).
+   - **Totaal goals** hoef je NIET via de API op te halen — bereken dit zelf door alle scores in
+     `UITSLAGEN.group` en `UITSLAGEN.ko.results` op te tellen.
+7. **Valideer** de data vóór je commit: controleer of scores het formaat `"thuis-uit"` hebben (bijv. `"2-1"`).
+8. **Commit en push** met een duidelijke commit message die vermeldt welke wedstrijden zijn bijgewerkt.
+9. **Doe niets** als er geen nieuwe uitslagen én geen gewijzigde stats zijn — maak geen lege commits.
 
 ---
 

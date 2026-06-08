@@ -29,13 +29,38 @@ from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
 load_dotenv(Path(__file__).parent / '.env')
 
-BOT_TOKEN    = os.getenv('TELEGRAM_BOT_TOKEN')
-API_KEY      = os.getenv('ANTHROPIC_API_KEY')
-CHAT_ID      = int(os.getenv('TELEGRAM_CHAT_ID', '0'))
-FLORIS_ID    = int(os.getenv('FLORIS_TELEGRAM_ID', '0'))
-REPO_DIR     = Path(__file__).parent
-DATA_JS      = REPO_DIR / 'data.js'
-POSTED_FILE  = REPO_DIR / 'geposte_updates.json'
+BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
+API_KEY          = os.getenv('ANTHROPIC_API_KEY')
+CHAT_ID          = int(os.getenv('TELEGRAM_CHAT_ID', '0'))
+FLORIS_ID        = int(os.getenv('FLORIS_TELEGRAM_ID', '0'))
+FOOTBALL_API_KEY = os.getenv('FOOTBALL_API_KEY', '')
+REPO_DIR         = Path(__file__).parent
+DATA_JS          = REPO_DIR / 'data.js'
+POSTED_FILE      = REPO_DIR / 'geposte_updates.json'
+SCHEDULE_FILE    = REPO_DIR / 'wedstrijden.json'
+
+FOOTBALL_API_BASE = 'https://v3.football.api-sports.io'
+WC_LEAGUE_ID      = 1
+WC_SEASON         = 2026
+
+# Nederlandse → Engelse landnamen voor de football API
+NL_TO_EN = {
+    "Mexico":"Mexico","Zuid-Afrika":"South Africa","Zuid-Korea":"South Korea",
+    "Tsjechië":"Czech Republic","Canada":"Canada","Zwitserland":"Switzerland",
+    "Qatar":"Qatar","Bosnië-Herzegovina":"Bosnia","Brazilië":"Brazil",
+    "Marokko":"Morocco","Haïti":"Haiti","Schotland":"Scotland",
+    "Verenigde Staten":"United States","Paraguay":"Paraguay","Australië":"Australia",
+    "Turkije":"Turkey","Duitsland":"Germany","Curaçao":"Curacao",
+    "Ivoorkust":"Ivory Coast","Ecuador":"Ecuador","Nederland":"Netherlands",
+    "Japan":"Japan","Zweden":"Sweden","Tunesië":"Tunisia","België":"Belgium",
+    "Egypte":"Egypt","Iran":"Iran","Nieuw-Zeeland":"New Zealand","Spanje":"Spain",
+    "Kaapverdië":"Cape Verde","Saoedi-Arabië":"Saudi Arabia","Uruguay":"Uruguay",
+    "Frankrijk":"France","Senegal":"Senegal","Noorwegen":"Norway","Irak":"Iraq",
+    "Argentinië":"Argentina","Algerije":"Algeria","Oostenrijk":"Austria",
+    "Jordanië":"Jordan","Portugal":"Portugal","DR Congo":"DR Congo",
+    "Oezbekistan":"Uzbekistan","Colombia":"Colombia","Engeland":"England",
+    "Kroatië":"Croatia","Ghana":"Ghana","Panama":"Panama",
+}
 
 GESPREK_TIMEOUT = 180  # seconden actief gesprek per gebruiker
 
@@ -81,6 +106,25 @@ waar die gespeeld wordt. Voeg er soms een nutteloos feitje over die stad aan toe
 Doe dit nooit geforceerd: alleen als het past in de conversatie of als het een dag met interessante wedstrijden is."""
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
+
+TOOL_GET_TOURNAMENT_STATS = {
+    "name": "get_tournament_stats",
+    "description": (
+        "Haalt live WK-toernooiStats op via de football API: "
+        "topscorers (naam + goals), en kaarten (geel + rood) voor wedstrijden op een opgegeven datum. "
+        "Gebruik dit bij de dagelijkse update om topscorers en kaarten bij te werken in data.js."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "datum": {
+                "type": "string",
+                "description": "Datum waarvoor kaarten opgehaald worden, formaat YYYY-MM-DD",
+            }
+        },
+        "required": ["datum"],
+    },
+}
 
 TOOL_GET_SCHEDULE = {
     "name": "get_schedule",
@@ -131,12 +175,70 @@ TOOL_GIT_PUSH = {
 }
 
 CHAT_TOOLS   = [TOOL_GET_SCHEDULE, TOOL_GET_STANDINGS, TOOL_GET_DATA, TOOL_FETCH_URL]
-UPDATE_TOOLS = [TOOL_GET_SCHEDULE, TOOL_GET_STANDINGS, TOOL_GET_DATA, TOOL_FETCH_URL, TOOL_WRITE_DATA, TOOL_GIT_PUSH]
+UPDATE_TOOLS = [TOOL_GET_TOURNAMENT_STATS, TOOL_GET_SCHEDULE, TOOL_GET_STANDINGS,
+                TOOL_GET_DATA, TOOL_FETCH_URL, TOOL_WRITE_DATA, TOOL_GIT_PUSH]
 
 
-SCHEDULE_FILE = REPO_DIR / 'wedstrijden.json'
+def _football_api(endpoint: str, params: dict) -> dict:
+    url = f"{FOOTBALL_API_BASE}/{endpoint}"
+    qs  = "&".join(f"{k}={v}" for k, v in params.items())
+    req = urllib.request.Request(
+        f"{url}?{qs}",
+        headers={"x-apisports-key": FOOTBALL_API_KEY},
+    )
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read())
+
+
+def run_tournament_stats(datum: str) -> str:
+    result = {"datum": datum, "topscorers": [], "kaarten": {}}
+
+    # 1. Top scorers
+    try:
+        data = _football_api("players/topscorers",
+                             {"league": WC_LEAGUE_ID, "season": WC_SEASON})
+        for entry in data.get("response", [])[:3]:
+            p = entry["player"]
+            g = entry["statistics"][0]["goals"]
+            result["topscorers"].append({
+                "naam": p["name"],
+                "goals": g["total"] or 0,
+            })
+    except Exception as e:
+        result["topscorers_fout"] = str(e)
+
+    # 2. Kaarten voor wedstrijden op opgegeven datum
+    try:
+        fixtures_data = _football_api("fixtures",
+                                      {"league": WC_LEAGUE_ID, "season": WC_SEASON,
+                                       "from": datum, "to": datum, "status": "FT"})
+        for f in fixtures_data.get("response", []):
+            fid      = f["fixture"]["id"]
+            home_en  = f["teams"]["home"]["name"]
+            away_en  = f["teams"]["away"]["name"]
+            label    = f"{home_en} vs {away_en}"
+            geel, rood = 0, 0
+            try:
+                stats = _football_api("fixtures/statistics", {"fixture": fid})
+                for team_stats in stats.get("response", []):
+                    for s in team_stats.get("statistics", []):
+                        if s["type"] == "Yellow Cards":
+                            geel  += s["value"] or 0
+                        elif s["type"] == "Red Cards":
+                            rood  += s["value"] or 0
+            except Exception:
+                pass
+            result["kaarten"][label] = {"geel": geel, "rood": rood}
+    except Exception as e:
+        result["kaarten_fout"] = str(e)
+
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
 
 def run_tool(name: str, tool_input: dict, allow_write: bool = False) -> str:
+    if name == "get_tournament_stats":
+        return run_tournament_stats(tool_input.get("datum", str(date.today())))
+
     if name == "get_schedule":
         return SCHEDULE_FILE.read_text()
 
