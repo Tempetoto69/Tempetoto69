@@ -1,3 +1,4 @@
 .env
 bot.log
 .venv/
+geposte_updates.json

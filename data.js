@@ -68,13 +68,26 @@ const TEAMCOLORS = {
   "Engeland":"#001a57","Kroatië":"#c8102e","Ghana":"#ffd100","Panama":"#da121a",
 };
 
-// Round-robin volgorde per groep (4 teams): bepaalt de 6 wedstrijden
-const RR_PAIRS = [[0,1],[2,3],[0,2],[3,1],[3,0],[1,2]];
+// Officiële FIFA-volgorde per groep (geverifieerd via Wikipedia, juni 2026)
+const GROUP_PAIRS = {
+  A: [[0,1],[2,3],[3,1],[0,2],[3,0],[1,2]],
+  B: [[0,3],[2,1],[1,3],[0,2],[1,0],[3,2]],
+  C: [[0,1],[2,3],[3,1],[0,2],[3,0],[1,2]],
+  D: [[0,1],[2,3],[0,2],[3,1],[3,0],[1,2]],
+  E: [[0,1],[2,3],[0,2],[3,1],[1,2],[3,0]],
+  F: [[0,1],[2,3],[0,2],[3,1],[1,2],[3,0]],
+  G: [[0,1],[2,3],[0,2],[3,1],[1,2],[3,0]],
+  H: [[0,1],[2,3],[0,2],[3,1],[1,2],[3,0]],
+  I: [[0,1],[3,2],[0,3],[2,1],[2,0],[1,3]],
+  J: [[0,1],[2,3],[0,2],[3,1],[1,2],[3,0]],
+  K: [[0,1],[2,3],[0,2],[3,1],[3,0],[1,2]],
+  L: [[0,1],[2,3],[0,2],[3,1],[3,0],[1,2]],
+};
 function buildGroupMatches(){
   const m=[];
   for(const g of Object.keys(GROUPS)){
     const t=GROUPS[g]; let n=1;
-    for(const [a,b] of RR_PAIRS){ m.push({id:`${g}${n}`,group:g,home:t[a],away:t[b]}); n++; }
+    for(const [a,b] of GROUP_PAIRS[g]){ m.push({id:`${g}${n}`,group:g,home:t[a],away:t[b]}); n++; }
   }
   return m;
 }
@@ -265,5 +278,5 @@ const ALLTIME_DATA = {
 };
 
 if(typeof module!=="undefined"){
-  module.exports={GROUPS,GROUP_MATCHES,KO_ROUNDS,SCORING,FAVORITES,OUTSIDERS,DEELNEMERS,VOORSPELLINGEN,UITSLAGEN,ALLTIME_DATA};
+  module.exports={GROUPS,GROUP_MATCHES,KO_ROUNDS,SCORING,FAVORITES,OUTSIDERS,DEELNEMERS,VOORSPELLINGEN,UITSLAGEN,ALLTIME_DATA,RANKING,surpriseFactor,deceptionFactor};
 }
