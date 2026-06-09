@@ -1,4 +1,8 @@
 .env
-bot.log
+bot.log*
+cron.log
 .venv/
 geposte_updates.json
+geposte_prematch.json
+chat_history.json
+__pycache__/

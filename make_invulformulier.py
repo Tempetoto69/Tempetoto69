@@ -258,7 +258,7 @@ def build_sheet(ws, ls):  # ls = naam van het Landen-sheet
     for r in range(1, BANNER_ROWS + 1):
         rh(ws, r, BANNER_PT)
 
-    pil = PILImage.open('/home/floris/Tempetoto/banner.png')
+    pil = PILImage.open('/home/floris/Tempetoto/banner.jpg')
     bw, bh = 1200, round(1200 / (pil.width / pil.height))
     pil = pil.resize((bw, bh), PILImage.LANCZOS)
     buf = io.BytesIO()

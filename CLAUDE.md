@@ -19,8 +19,16 @@ EJ, Floris, Daniel, Giezen, Huttenhuis, Mark, Pieter, Slotboom, Smit, **AI Kees*
 | `AGENT_INSTRUCTIONS.md` | Instructies voor de update-agent (uitslagen bijwerken) |
 | `make_invulformulier.py` | Genereert het Excel invulformulier |
 | `tempetoto2026_invulformulier.xlsx` | Excel-template voor deelnemers |
-| `banner.png` | Header-afbeelding (ook in het Excel-formulier) |
+| `banner.jpg` | Header-afbeelding (ook in het Excel-formulier) |
 | `AI_KEES_PROFIEL.md` | Volledig karakterprofiel + system prompt basis voor AI Kees |
+| `telegram_bot.py` | AI Kees bot: chat, dagelijkse update (`--daily-update`), pre-match preview (`--pre-match`) |
+| `bereken_stand.js` | Berekent de actuele stand (JSON op stdout) |
+| `valideer_data.js` | Valideert data.js (integriteit + scoretests) vóór elke write/push |
+| `prewedstrijd.js` | Voorspellingen per wedstrijd voor de pre-match preview |
+| `wedstrijden.json` | Speelschema: datum, tijd, stad, stadion per wedstrijd #1-#104 |
+| `maak_kees_voorspellingen.py` | Eenmalig: genereert AI Kees's voorspellingen |
+| `tempetoto-bot.service` | systemd unit voor de bot (chat-modus) |
+| `requirements.txt` | Python-dependencies (venv: `.venv/`) |
 
 ## Data structuur (data.js)
 - `GROUPS` — 12 groepen A-L, 48 landen
@@ -65,57 +73,40 @@ Statische HTML/JS site met Excel-look. Tabs per deelnemer + stand-tab.
 - Groepswinnaar + runner-up (uit scores)
 - Beste 8 nummers 3 (uit scores)
 
-### 🔲 3. Update-agent (nog te bouwen)
-Draait lokaal via cron (elk uur), gebruikt Claude API voor intelligentie.
+### ✅ 3. Dagelijkse update-agent (in productie)
+Geïntegreerd in `telegram_bot.py --daily-update`. Geen apart `update_agent.py`.
 
 **Architectuur:**
 ```
-cron (elk uur, lokale machine)
-    └── update_agent.py
-            └── Claude API (claude-sonnet-4-6)
-                    ├── WebFetch → FIFA / BBC / NOS
-                    ├── leest AGENT_INSTRUCTIONS.md + data.js
-                    ├── past data.js aan
-                    └── git commit + push → GitHub Pages bijgewerkt
+cron (08:00, lokale machine) → telegram_bot.py --daily-update
+    └── Claude API (claude-sonnet-4-6) met tools:
+            ├── get_tournament_stats → football API (uitslagen, kaarten, topscorers)
+            ├── get_standings / get_data / get_schedule / fetch_url
+            ├── write_data  → schrijft data.js, valideer_data.js draait direct (rollback bij fout)
+            └── git_push    → validatie + commit + push → GitHub Pages bijgewerkt
+    └── post stand-update als AI Kees in de Telegram-groep
 ```
+Deduplicatie via `geposte_updates.json` (max één update per dag).
+Cron-output gaat naar `cron.log`; de bot logt zelf naar `bot.log` (geroteerd, max ~2MB ×4).
 
-**Nog te doen:**
-- `update_agent.py` schrijven (Claude API met tool use: web_fetch, read/write file, bash voor git)
-- Cron instellen op lokale machine
-- `ANTHROPIC_API_KEY` instellen als environment variable
+### ✅ 4. Telegram-bot + AI Kees (in productie)
+Draait als systemd service `tempetoto-bot` (chat-modus, polling).
+Herstart na code-wijzigingen: `sudo systemctl restart tempetoto-bot`.
 
-### 🔲 4. Telegram-bot + AI Kees (nog te bouwen)
-Één Telegram-bot met twee rollen:
-
-**4a. Commentaatbot**
-- Getriggerd door de update-agent na elke nieuwe uitslag
-- Post berichten als: "Slotboom klimt naar plek 2! 🔥"
-- Analyseert standsveranderingen en genereert commentaar via Claude API
-
-**4b. AI Kees** *(profiel vastgelegd in `AI_KEES_PROFIEL.md`)*
-- Volwaardige deelnemer in de poule
-- Praat in de Telegram-groep als AI Kees: reageert op uitslagen, plaagt deelnemers
-- Getriggerd door: nieuwe uitslag, directe mention, slecht nieuws voor eigen voorspelling
-- Karakter: master Finance, piratenmasker, contrair, intelligente droge humor, finance-lens op voetbal (puts/calls/volatiliteit), macro-economisch wereldbeeld, zuur over hype en populaire meningen
+- **Chat:** reageert op @mention, "kees", Smit/uitslag-triggers en actieve gesprekken (Haiku, alleen read-tools)
+- **Dagelijkse update:** zie component 3 (Sonnet, met write-tools)
+- **Pre-match preview:** cron elke 5 min (`--pre-match`) post ~15 min vóór elke groepswedstrijd de voorspellingen
+- Karakter: master Finance, piratenmasker, contrair, droge humor, finance-jargon spaarzaam — zie `AI_KEES_PROFIEL.md`
 
 **Telegram-groep:** ✅ aangemaakt — chat ID `-5030253572`, bot `@ai_kees_bot` actief
 **Configuratie:** `/home/floris/Tempetoto/.env` (niet in git)
-
-**Nog te doen:**
-- Floris maakt Telegram-groep aan en voegt deelnemers toe
-- Floris definieert psychologisch profiel van AI Kees
-- `telegram_bot.py` schrijven (python-telegram-bot library)
-- Bot-token aanvragen via @BotFather
-- Integratie met update-agent (webhook of polling)
 
 ---
 
 ## Openstaande acties voor Floris
 1. **Voorspellingen verzamelen** — invulformulier versturen naar deelnemers, ingevulde bestanden terugkrijgen
 2. **Voorspellingen verwerken** — ingevulde Excel-bestanden verwerken naar `data.js`
-3. **Telegram-groep aanmaken** — deelnemers toevoegen
-4. **AI Kees profiel** — psychologisch karakter beschrijven (toon, stijl, quirks)
-5. **Bot-token** — aanvragen via @BotFather op Telegram
+3. **AI Kees voorspellingen** — `maak_kees_voorspellingen.py` draaien vóór de aftrap (11 juni 2026)
 
 ---
 

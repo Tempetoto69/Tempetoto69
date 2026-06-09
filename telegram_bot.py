@@ -14,6 +14,7 @@ import json
 import random
 import asyncio
 import logging
+import logging.handlers
 import subprocess
 import time
 import urllib.request
@@ -72,7 +73,8 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s %(levelname)s %(message)s',
     handlers=[
-        logging.FileHandler(REPO_DIR / 'bot.log'),
+        logging.handlers.RotatingFileHandler(REPO_DIR / 'bot.log',
+                                             maxBytes=2_000_000, backupCount=3),
         logging.StreamHandler(),
     ]
 )
@@ -282,8 +284,17 @@ def run_tool(name: str, tool_input: dict, allow_write: bool = False) -> str:
             return f"Fout bij ophalen {url}: {e}"
 
     if name == "write_data" and allow_write:
+        oud = DATA_JS.read_text()
         DATA_JS.write_text(tool_input["content"])
-        return "data.js bijgewerkt."
+        validatie = subprocess.run(
+            ["node", str(REPO_DIR / "valideer_data.js")],
+            capture_output=True, text=True,
+        )
+        if validatie.returncode != 0:
+            DATA_JS.write_text(oud)
+            return (f"Schrijven geweigerd — validatie mislukt, oude data.js teruggezet:\n"
+                    f"{validatie.stdout}{validatie.stderr}")
+        return "data.js bijgewerkt en gevalideerd."
 
     if name == "git_push" and allow_write:
         try:
@@ -640,7 +651,7 @@ def main():
         log.error("BOT_TOKEN of ANTHROPIC_API_KEY ontbreekt in .env")
         sys.exit(1)
 
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = Application.builder().token(BOT_TOKEN).concurrent_updates(True).build()
     app.add_handler(MessageHandler(
         filters.TEXT & filters.Chat(CHAT_ID),
         handle_message,
