@@ -54,11 +54,20 @@ function surprisePts(land) {
   return b != null ? Math.round(b * surpriseFactor(land)) : 0;
 }
 
+// Een ronde is pas "bekend" als alle bracket-slots echte landen bevatten —
+// tot die tijd is een uitschakeling niet definitief en telt deceptie niet.
+const ALLE_LANDEN = Object.values(GROUPS).flat();
+function rondeGevuld(key) {
+  const br = UITSLAGEN.ko.brackets[key] || [];
+  return br.length > 0 && br.every(d => ALLE_LANDEN.includes(d.home) && ALLE_LANDEN.includes(d.away));
+}
+
 function deceptionExit(land) {
   const r = teamReached(land);
-  if (r == null) return 'groep';
-  if (r === 'R32' || r === 'R16' || r === 'KF') return r;
-  return null;
+  if (r == null) return rondeGevuld('R32') ? 'groep' : null;
+  const volgende = { R32: 'R16', R16: 'KF', KF: 'HF' }[r];
+  if (!volgende || !rondeGevuld(volgende)) return null; // HF of verder, of ronde nog bezig
+  return r;
 }
 
 function deceptionPts(land) {
