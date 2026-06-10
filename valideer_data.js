@@ -28,6 +28,27 @@ try {
 
 const { SCORING, DEELNEMERS, UITSLAGEN, GROUP_MATCHES } = data;
 
+// ── Laag 1a-bis: browser-pariteit ─────────────────────────────────────────────
+// data.js draait óók in de browser, waar `module` niet bestaat. Code die per
+// ongeluk in een typeof-module-guard belandt werkt dan wel in Node maar niet
+// op de site (bug van 10 juni 2026: AI Kees-blok zat binnen de guard).
+try {
+    const vm = require('vm');
+    const fs = require('fs');
+    const src = fs.readFileSync(__dirname + '/data.js', 'utf8');
+    const ctx = { console };
+    vm.createContext(ctx);
+    vm.runInContext(src + ';globalThis.__B={VOORSPELLINGEN,UITSLAGEN};', ctx);
+    const zelfde = (naam, a, b) => {
+        if (JSON.stringify(a) === JSON.stringify(b)) ok(`browser-context: ${naam} identiek aan Node`);
+        else fout(`browser-context wijkt af van Node`, naam);
+    };
+    zelfde('VOORSPELLINGEN', ctx.__B.VOORSPELLINGEN, data.VOORSPELLINGEN);
+    zelfde('UITSLAGEN', ctx.__B.UITSLAGEN, data.UITSLAGEN);
+} catch (e) {
+    fout('data.js faalt in browser-context (zonder module/require)', e.message);
+}
+
 // ── Laag 1b: SCORING constanten ongewijzigd ───────────────────────────────────
 const VERWACHT = {
     'group.toto':           3,

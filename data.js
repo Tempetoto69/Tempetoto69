@@ -1045,8 +1045,6 @@ const ALLTIME_DATA = {
   ],
 };
 
-if(typeof module!=="undefined"){
-  
 // AI Kees voorspellingen — gegenereerd door maak_kees_voorspellingen.py
 // Motivatie: kampioen=Frankrijk is geen contraire pick maar de diepte van de selectie is mispriced als 'gewoon favoriet' — dit is de minste risico-adjusted bet in het veld., verrassing=Zwitserland is een lowvol value-aandeel: defensief solide, B-groep met Qatar en Bosnië is een gespreid tafeltje, en ik woon hier dus ik weet wat ik koop.,
 //            deceptie=Duitsland is de klassieke overgekochte naam — sentiment hoog, fundamentals wankel, en groep E met Ecuador als short tegen de hype., topscorer=Mbappé is de obvious trade, maar bij Frankrijk die ver komt is volume gegarandeerd; ik betaal liever voor zekerheid dan voor een longshot-spits.
@@ -1141,5 +1139,7 @@ VOORSPELLINGEN["AI Kees"] = {
   ko: {R32:[],R16:[],KF:[],HF:[],F:[]},
 };
 
+// Alleen voor Node (bereken_stand.js, valideer_data.js, bot) — browsers slaan dit over.
+if(typeof module!=="undefined"){
 module.exports={GROUPS,GROUP_MATCHES,KO_ROUNDS,SCORING,FAVORITES,OUTSIDERS,DEELNEMERS,VOORSPELLINGEN,UITSLAGEN,ALLTIME_DATA,RANKING,surpriseFactor,deceptionFactor};
 }

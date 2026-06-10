@@ -259,10 +259,13 @@ VOORSPELLINGEN["AI Kees"] = {{
         end   = data_js.index(marker_end, start) + len(marker_end)
         data_js = data_js[:start] + blok.lstrip('\n') + data_js[end:]
     else:
-        # Voeg in vóór de module.exports regel
-        exports_marker = 'module.exports'
-        if exports_marker in data_js:
-            pos = data_js.index(exports_marker)
+        # Voeg in vóór het module.exports-blok — inclusief de Node-guard
+        # eromheen, anders belandt het blok bínnen de guard en slaat de
+        # browser het stilletjes over (bug van 10 juni 2026).
+        posities = [data_js.index(m) for m in ('if(typeof module!=="undefined")',
+                    '// Alleen voor Node', 'module.exports') if m in data_js]
+        if posities:
+            pos = min(posities)
             data_js = data_js[:pos] + blok + '\n\n' + data_js[pos:]
         else:
             data_js += blok
