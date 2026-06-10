@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Verwerkt ingevulde invulformulieren (xlsx) naar VOORSPELLINGEN in data.js.
 
-Gebruik: python3 verwerk_voorspelling.py Smit.xlsx [Pieter.xlsx ...]
+Gebruik: python3 verwerk_voorspelling.py [--afleiden] Smit.xlsx [Pieter.xlsx ...]
+
+--afleiden: bereken ontbrekende groepswinnaars/runner-ups en beste 8 nummers 3
+uit de voorspelde scores (voor oude formulier-versies zonder die velden).
 
 Veiligheid (zie AGENT_INSTRUCTIONS.md): voorspellingsdata is onbetrouwbare
 invoer. Alleen scores in n-n formaat, landnamen uit de officiële lijst en
@@ -17,7 +20,7 @@ from pathlib import Path
 
 import openpyxl
 
-from make_invulformulier import GROUPS, GROUP_MATCHES
+from make_invulformulier import GROUPS, GROUP_MATCHES, RANKING
 
 REPO_DIR = Path(__file__).parent
 DATA_JS  = REPO_DIR / 'data.js'
@@ -199,6 +202,47 @@ def parse_formulier(path: Path) -> tuple[str, dict]:
     return deelnemer, {"prematch": prematch, "group": group, "top2": top2, "best3": best3}
 
 
+def leid_top2_best3_af(deelnemer: str, pred: dict):
+    """Vult lege top2/best3 met de stand die uit de voorspelde scores volgt.
+    Sortering: punten, doelsaldo, goals voor; bij exact gelijk beslist de
+    FIFA-ranking (met waarschuwing, zodat Floris het kan controleren)."""
+    standen = {}
+    for g, teams in GROUPS.items():
+        st = {t: {"pts": 0, "gd": 0, "gf": 0} for t in teams}
+        for m in (m for m in GROUP_MATCHES if m['group'] == g):
+            s = pred["group"].get(m["id"])
+            if not s:
+                warn(f"{deelnemer}: groep {g} incompleet ({m['id']} ontbreekt) — afleiden onbetrouwbaar")
+                continue
+            h, a = map(int, s.split("-"))
+            st[m["home"]]["gd"] += h - a; st[m["home"]]["gf"] += h
+            st[m["away"]]["gd"] += a - h; st[m["away"]]["gf"] += a
+            if h > a:   st[m["home"]]["pts"] += 3
+            elif a > h: st[m["away"]]["pts"] += 3
+            else:       st[m["home"]]["pts"] += 1; st[m["away"]]["pts"] += 1
+
+        sleutel = lambda t: (-st[t]["pts"], -st[t]["gd"], -st[t]["gf"], RANKING.get(t, 99))
+        orde = sorted(teams, key=sleutel)
+        for p in range(3):  # gelijke stand rond plek 1-3 is relevant voor top2/best3
+            if sleutel(orde[p])[:3] == sleutel(orde[p + 1])[:3]:
+                warn(f"{deelnemer}: groep {g} plek {p+1}/{p+2} exact gelijk "
+                     f"({orde[p]} vs {orde[p+1]}) — FIFA-ranking besliste")
+        standen[g] = (orde, st)
+
+    if not pred["top2"]:
+        pred["top2"] = {g: orde[:2] for g, (orde, _) in standen.items()}
+        print(f"  → top2 afgeleid uit scores")
+    if not pred["best3"]:
+        derden = [(orde[2], st[orde[2]]) for orde, st in standen.values()]
+        derden.sort(key=lambda x: (-x[1]["pts"], -x[1]["gd"], -x[1]["gf"], RANKING.get(x[0], 99)))
+        if [(-d[1]["pts"], -d[1]["gd"], -d[1]["gf"]) for d in derden[7:8]] == \
+           [(-d[1]["pts"], -d[1]["gd"], -d[1]["gf"]) for d in derden[8:9]]:
+            warn(f"{deelnemer}: nummer 3 plek 8/9 exact gelijk "
+                 f"({derden[7][0]} vs {derden[8][0]}) — FIFA-ranking besliste")
+        pred["best3"] = [t for t, _ in derden[:8]]
+        print(f"  → best3 afgeleid uit scores")
+
+
 def inject_in_data_js(deelnemer: str, pred: dict):
     js = json.dumps(pred, ensure_ascii=False, indent=2)
     block = (f"// >>> VOORSPELLING {deelnemer} (gegenereerd door verwerk_voorspelling.py)\n"
@@ -221,10 +265,16 @@ def inject_in_data_js(deelnemer: str, pred: dict):
 def main():
     if len(sys.argv) < 2:
         raise SystemExit(__doc__)
-    for arg in sys.argv[1:]:
+    args = sys.argv[1:]
+    afleiden = "--afleiden" in args
+    for arg in args:
+        if arg == "--afleiden":
+            continue
         path = Path(arg)
         print(f"\n▶ {path.name}")
         deelnemer, pred = parse_formulier(path)
+        if afleiden:
+            leid_top2_best3_af(deelnemer, pred)
         inject_in_data_js(deelnemer, pred)
         print(f"  ✓ {deelnemer}: {len(pred['group'])} wedstrijden, "
               f"{len(pred['top2'])} groepen top2, {len(pred['best3'])} nummers 3 → data.js")

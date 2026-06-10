@@ -435,8 +435,66 @@ Object.assign(VOORSPELLINGEN["Smit"], {
     "K6": "1-1",
     "L6": "2-1"
   },
-  "top2": {},
-  "best3": []
+  "top2": {
+    "A": [
+      "Mexico",
+      "Zuid-Korea"
+    ],
+    "B": [
+      "Zwitserland",
+      "Canada"
+    ],
+    "C": [
+      "Brazilië",
+      "Marokko"
+    ],
+    "D": [
+      "Verenigde Staten",
+      "Paraguay"
+    ],
+    "E": [
+      "Duitsland",
+      "Ecuador"
+    ],
+    "F": [
+      "Nederland",
+      "Japan"
+    ],
+    "G": [
+      "België",
+      "Egypte"
+    ],
+    "H": [
+      "Spanje",
+      "Uruguay"
+    ],
+    "I": [
+      "Frankrijk",
+      "Noorwegen"
+    ],
+    "J": [
+      "Argentinië",
+      "Oostenrijk"
+    ],
+    "K": [
+      "Portugal",
+      "Colombia"
+    ],
+    "L": [
+      "Engeland",
+      "Kroatië"
+    ]
+  },
+  "best3": [
+    "Senegal",
+    "Ivoorkust",
+    "Zweden",
+    "Bosnië-Herzegovina",
+    "Turkije",
+    "Algerije",
+    "Tsjechië",
+    "Iran"
+  ]
 });
 // <<< VOORSPELLING Smit
 
