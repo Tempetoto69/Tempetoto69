@@ -809,6 +809,67 @@ def _standfeit(oud: list[dict], nieuw: list[dict]) -> str | None:
     return None
 
 
+# Zelfde semantiek als stillAlive() op de website: een land is pas definitief
+# uitgeschakeld als de volgende KO-ronde volledig met echte landen is gevuld.
+_KAMPIOEN_JS = """
+const d=require('./data.js');
+const u=d.UITSLAGEN, alle=Object.values(d.GROUPS).flat();
+const gevuld=k=>{const br=u.ko.brackets[k]||[];return br.length>0&&br.every(x=>alle.includes(x.home)&&alle.includes(x.away));};
+const bereikt=l=>{let r=null;for(const k of ['R32','R16','KF','HF','F'])if((u.ko.brackets[k]||[]).some(x=>x.home===l||x.away===l))r=k;return u.facts.champion===l?'WIN':r;};
+const leeft=l=>{if(u.facts.champion)return u.facts.champion===l;const r=bereikt(l);const v=r==null?'R32':{R32:'R16',R16:'KF',KF:'HF',HF:'F'}[r];return !v?true:!gevuld(v);};
+const out={};
+for(const n of d.DEELNEMERS){const k=(d.VOORSPELLINGEN[n].prematch||{}).champion;if(k)out[n]={kampioen:k,leeft:leeft(k)};}
+console.log(JSON.stringify(out));
+"""
+
+
+async def meld_dode_kampioenen():
+    """Meldt eenmalig in de groep wanneer iemands kampioenskeuze definitief is
+    uitgeschakeld. Deduplicatie per land via geposte_updates.json."""
+    if not BOT_TOKEN or not API_KEY:
+        return
+    try:
+        info = json.loads(subprocess.run(
+            ["node", "-e", _KAMPIOEN_JS], cwd=REPO_DIR,
+            capture_output=True, text=True, check=True).stdout)
+    except Exception as e:
+        log.error(f"Kampioen-check mislukt: {e}")
+        return
+
+    gemeld = _posted_get("dode_kampioenen") or []
+    vers = {}
+    for naam, x in info.items():
+        if not x["leeft"] and x["kampioen"] not in gemeld:
+            vers.setdefault(x["kampioen"], []).append(naam)
+    if not vers:
+        return
+
+    regels = "; ".join(f"{land} (kampioen van {', '.join(wie)})" for land, wie in vers.items())
+    opdracht = (f"Slecht nieuws uit de poule: de volgende kampioenskeuzes zijn definitief "
+                f"uitgeschakeld — {regels}. De kampioensbonus kan voor deze deelnemers niet meer komen. "
+                f"Maak hier als AI Kees één droog condoleance-bericht over voor de groep (max 3 zinnen). "
+                f"Zit je eigen kampioen erbij, dan draag je het stoïcijns; zit die van Smit erbij, "
+                f"dan weet je wat je te doen staat.")
+    reply = _call_claude(
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": opdracht}],
+        tools=CHAT_TOOLS,
+        model="claude-haiku-4-5-20251001",
+        max_tokens=300,
+    )
+    if reply:
+        await Bot(token=BOT_TOKEN).send_message(chat_id=CHAT_ID, text=reply)
+        geschiedenis.append(f"AI Kees: {reply}")
+        _save_history()
+        try:
+            data = json.loads(POSTED_FILE.read_text())
+        except Exception:
+            data = {}
+        data["dode_kampioenen"] = gemeld + list(vers)
+        POSTED_FILE.write_text(json.dumps(data, ensure_ascii=False))
+        log.info(f"Kampioen-uitschakeling gemeld: {reply}")
+
+
 async def run_check_uitslagen():
     if not _klaar_te_checken():
         log.info("Check uitslagen: niets te checken.")
@@ -903,6 +964,8 @@ async def run_check_uitslagen():
                 _posted_set("standfeit")
             log.info(f"{log_label}: {reply}")
 
+    await meld_dode_kampioenen()
+
 
 # ── Entrypoints ───────────────────────────────────────────────────────────────
 
@@ -927,6 +990,7 @@ async def run_daily_update():
     mark_posted_today()
     log.info(f"Dagelijkse update gepost: {bericht}")
     bewaar_stand_snapshot()
+    await meld_dode_kampioenen()
 
 
 def main():
