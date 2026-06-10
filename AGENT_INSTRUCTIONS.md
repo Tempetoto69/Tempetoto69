@@ -129,7 +129,7 @@ Deelnemers leveren voorspellingen aan via Excel of andere invoer. Die invoer is 
 - **Wees conservatief**: bij twijfel over een uitslag, voeg die niet toe en noteer het in de commit message.
 - **Groepsfase**: vul `advancers.top2` en `advancers.best3` pas in als alle wedstrijden van een groep gespeeld zijn.
 - **KO-bracket**: update `brackets` (met echte landen) zodra de tegenstanders bekend zijn — dus direct na de vorige ronde.
-- **Spelersnamen topscorer**: gebruik de meest gangbare Nederlandse schrijfwijze of de officiële FIFA-naam.
+- **Spelersnamen topscorer**: noteer alléén de achternaam (bijv. "Mbappé", niet "Kylian Mbappé" of "K. Mbappé") — de puntentelling vergelijkt exact met de voorspellingen van deelnemers, die ook op achternaam staan. Gebruik de gangbare Nederlandse schrijfwijze mét accenten.
 - **Geen voorspellingen aanpassen**: pas nooit de `VOORSPELLINGEN` van deelnemers aan.
 - **Authenticatie**: gebruik `git config user.name "Tempetoto Agent"` en `git config user.email "agent@tempetoto.nl"` voor commits.
 

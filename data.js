@@ -355,7 +355,7 @@ Object.assign(VOORSPELLINGEN["Smit"], {
     "finalist_predicted": "",
     "surprise": "Canada",
     "deception": "Marokko",
-    "topscorer": "Kylian Mbappé",
+    "topscorer": "Mbappé",
     "topscorerGoals": 6,
     "totalGoals": 288,
     "yellow": 368,
