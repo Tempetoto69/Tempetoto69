@@ -198,6 +198,304 @@ function leegVoorspelling(){
 const VOORSPELLINGEN = {};
 DEELNEMERS.forEach(n=>{ VOORSPELLINGEN[n]=leegVoorspelling(); });
 
+// >>> VOORSPELLING Mark (gegenereerd door verwerk_voorspelling.py)
+Object.assign(VOORSPELLINGEN["Mark"], {
+  "prematch": {
+    "champion": "Spanje",
+    "finalist_predicted": "",
+    "surprise": "Noorwegen",
+    "deception": "Kroatië",
+    "topscorer": "Kylian Mbappe",
+    "topscorerGoals": 4,
+    "totalGoals": 288,
+    "yellow": 388,
+    "red": 16
+  },
+  "group": {
+    "A1": "2-0",
+    "B1": "1-0",
+    "A2": "1-1",
+    "B2": "0-3",
+    "A3": "2-1",
+    "B3": "1-0",
+    "A4": "2-0",
+    "B4": "2-0",
+    "A5": "0-1",
+    "B5": "1-0",
+    "A6": "0-1",
+    "B6": "1-0",
+    "C1": "1-0",
+    "D1": "1-0",
+    "C2": "0-2",
+    "D2": "0-1",
+    "C3": "1-2",
+    "D3": "1-0",
+    "C4": "3-0",
+    "D4": "1-0",
+    "C5": "0-1",
+    "D5": "1-1",
+    "C6": "2-0",
+    "D6": "1-0",
+    "E1": "4-0",
+    "F1": "2-1",
+    "E2": "0-0",
+    "F2": "1-0",
+    "E3": "2-0",
+    "F3": "2-0",
+    "E4": "2-0",
+    "F4": "0-1",
+    "E5": "0-2",
+    "F5": "1-0",
+    "E6": "0-1",
+    "F6": "0-2",
+    "G1": "1-0",
+    "H1": "3-0",
+    "G2": "1-0",
+    "H2": "0-2",
+    "G3": "1-0",
+    "H3": "3-0",
+    "G4": "0-1",
+    "H4": "1-0",
+    "G5": "1-0",
+    "H5": "1-1",
+    "G6": "0-2",
+    "H6": "0-1",
+    "I1": "2-0",
+    "J1": "2-0",
+    "I2": "0-3",
+    "J2": "2-0",
+    "I3": "3-0",
+    "J3": "2-1",
+    "I4": "2-1",
+    "J4": "0-1",
+    "I5": "0-1",
+    "J5": "1-2",
+    "I6": "2-0",
+    "J6": "0-3",
+    "K1": "2-0",
+    "L1": "1-0",
+    "K2": "0-1",
+    "L2": "2-1",
+    "K3": "2-0",
+    "L3": "2-0",
+    "K4": "1-0",
+    "L4": "0-1",
+    "K5": "0-1",
+    "L5": "0-2",
+    "K6": "1-1",
+    "L6": "1-0"
+  },
+  "top2": {
+    "A": [
+      "Mexico",
+      "Zuid-Korea"
+    ],
+    "B": [
+      "Zwitserland",
+      "Canada"
+    ],
+    "C": [
+      "Brazilië",
+      "Marokko"
+    ],
+    "D": [
+      "Verenigde Staten",
+      "Turkije"
+    ],
+    "E": [
+      "Duitsland",
+      "Ecuador"
+    ],
+    "F": [
+      "Nederland",
+      "Japan"
+    ],
+    "G": [
+      "België",
+      "Egypte"
+    ],
+    "H": [
+      "Spanje",
+      "Uruguay"
+    ],
+    "I": [
+      "Frankrijk",
+      "Noorwegen"
+    ],
+    "J": [
+      "Argentinië",
+      "Oostenrijk"
+    ],
+    "K": [
+      "Portugal",
+      "Colombia"
+    ],
+    "L": [
+      "Engeland",
+      "Kroatië"
+    ]
+  },
+  "best3": [
+    "Tsjechië",
+    "Ivoorkust",
+    "Senegal",
+    "Paraguay",
+    "Bosnië-Herzegovina",
+    "Schotland",
+    "Zweden",
+    "Algerije"
+  ]
+});
+// <<< VOORSPELLING Mark
+
+// >>> VOORSPELLING Giezen (gegenereerd door verwerk_voorspelling.py)
+Object.assign(VOORSPELLINGEN["Giezen"], {
+  "prematch": {
+    "champion": "Nederland",
+    "finalist_predicted": "",
+    "surprise": "Japan",
+    "deception": "België",
+    "topscorer": "Mbappé",
+    "topscorerGoals": 7,
+    "totalGoals": 307,
+    "yellow": 398,
+    "red": 17
+  },
+  "group": {
+    "A1": "3-0",
+    "B1": "2-0",
+    "A2": "1-1",
+    "B2": "0-3",
+    "A3": "3-0",
+    "B3": "2-0",
+    "A4": "2-0",
+    "B4": "3-0",
+    "A5": "2-1",
+    "B5": "2-2",
+    "A6": "1-1",
+    "B6": "3-1",
+    "C1": "3-2",
+    "D1": "1-2",
+    "C2": "0-3",
+    "D2": "1-3",
+    "C3": "1-2",
+    "D3": "2-3",
+    "C4": "6-0",
+    "D4": "2-0",
+    "C5": "0-2",
+    "D5": "3-1",
+    "C6": "3-0",
+    "D6": "1-2",
+    "E1": "3-1",
+    "F1": "3-0",
+    "E2": "1-2",
+    "F2": "1-0",
+    "E3": "1-0",
+    "F3": "2-0",
+    "E4": "2-0",
+    "F4": "1-3",
+    "E5": "2-1",
+    "F5": "1-3",
+    "E6": "1-2",
+    "F6": "0-3",
+    "G1": "3-0",
+    "H1": "5-0",
+    "G2": "0-2",
+    "H2": "1-3",
+    "G3": "3-0",
+    "H3": "2-0",
+    "G4": "1-1",
+    "H4": "3-0",
+    "G5": "2-1",
+    "H5": "1-3",
+    "G6": "1-2",
+    "H6": "2-2",
+    "I1": "3-0",
+    "J1": "3-0",
+    "I2": "1-3",
+    "J2": "2-0",
+    "I3": "4-0",
+    "J3": "3-2",
+    "I4": "2-2",
+    "J4": "2-0",
+    "I5": "1-2",
+    "J5": "0-2",
+    "I6": "3-0",
+    "J6": "1-3",
+    "K1": "2-0",
+    "L1": "2-2",
+    "K2": "1-2",
+    "L2": "2-0",
+    "K3": "3-0",
+    "L3": "3-1",
+    "K4": "2-0",
+    "L4": "1-2",
+    "K5": "1-2",
+    "L5": "0-2",
+    "K6": "1-3",
+    "L6": "1-0"
+  },
+  "top2": {
+    "A": [
+      "Zuid-Afrika",
+      "Mexico"
+    ],
+    "B": [
+      "Zwitserland",
+      "Canada"
+    ],
+    "C": [
+      "Brazilië",
+      "Schotland"
+    ],
+    "D": [
+      "Turkije",
+      "Verenigde Staten"
+    ],
+    "E": [
+      "Duitsland",
+      "Ecuador"
+    ],
+    "F": [
+      "Nederland",
+      "Zweden"
+    ],
+    "G": [
+      "België",
+      "Egypte"
+    ],
+    "H": [
+      "Spanje",
+      "Uruguay"
+    ],
+    "I": [
+      "Frankrijk",
+      "Noorwegen"
+    ],
+    "J": [
+      "Argentinië",
+      "Oostenrijk"
+    ],
+    "K": [
+      "Portugal",
+      "Oezbekistan"
+    ],
+    "L": [
+      "Engeland",
+      "Kroatië"
+    ]
+  },
+  "best3": [
+    "Marokko",
+    "Paraguay",
+    "Australië",
+    "Zuid-Korea",
+    "Bosnië-Herzegovina",
+    "Egypte"
+  ]
+});
+// <<< VOORSPELLING Giezen
+
 // >>> VOORSPELLING Pieter (gegenereerd door verwerk_voorspelling.py)
 Object.assign(VOORSPELLINGEN["Pieter"], {
   "prematch": {
@@ -497,6 +795,11 @@ Object.assign(VOORSPELLINGEN["Smit"], {
   ]
 });
 // <<< VOORSPELLING Smit
+
+// Handmatige toelichtingen uit de formulieren (na de gegenereerde blokken
+// zodat ze een nieuwe run van verwerk_voorspelling.py overleven)
+VOORSPELLINGEN["Giezen"].prematch.championNote =
+  "(absoluut nul kan, maar ik kan niet anders - ben geen verrader)";
 
 // ============================================================
 //  UITSLAGEN (door organisator / later de agent)

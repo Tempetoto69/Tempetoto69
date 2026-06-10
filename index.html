@@ -352,7 +352,9 @@ function participantRows(naam){
     return r;
   };
   rows.push([C("Vooraf voorspeld","grouphdr",7)]);
-  rows.push(preRow("Kampioen:",flagName(pre.champion),champPts));
+  const champRow=preRow("Kampioen:",flagName(pre.champion),champPts);
+  if(pre.championNote) champRow.push(C(pre.championNote,"rules",8)); // col 8+: toelichting deelnemer
+  rows.push(champRow);
   rows.push(preRow("Verrassing:",flagName(pre.surprise),pre.surprise?surprisePts(pre.surprise):0));
   rows.push(preRow("Deceptie:",flagName(pre.deception),pre.deception?deceptionPts(pre.deception):0));
   rows.push(preRow("Topscorer (naam):",pre.topscorer,topscorerPts(pre)));

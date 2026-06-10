@@ -66,7 +66,15 @@ def norm_score(val, context):
 
 
 TEAM_ALIAS = {"vs": "Verenigde Staten", "usa": "Verenigde Staten",
-              "amerika": "Verenigde Staten", "holland": "Nederland"}
+              "amerika": "Verenigde Staten", "holland": "Nederland",
+              "nederand": "Nederland", "bosnië": "Bosnië-Herzegovina"}
+
+
+def _ruw(s):
+    """Vergelijkingsvorm: lowercase, zonder accenten/spaties/koppeltekens."""
+    import unicodedata
+    s = unicodedata.normalize("NFKD", s.lower())
+    return "".join(c for c in s if c.isalpha())
 
 
 def norm_team(val, context):
@@ -79,6 +87,10 @@ def norm_team(val, context):
         return TEAM_ALIAS[s.lower()]
     for t in ALL_TEAMS:
         if t.lower() == s.lower():
+            return t
+    for t in ALL_TEAMS:  # tolerant voor accent-, spatie- en koppeltekenfouten
+        if _ruw(t) == _ruw(s):
+            warn(f"{context}: '{s}' gelezen als '{t}'")
             return t
     warn(f"{context}: onbekend land '{s}' overgeslagen")
     return None
