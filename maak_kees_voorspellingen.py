@@ -28,11 +28,11 @@ API_KEY = os.getenv('ANTHROPIC_API_KEY')
 def get_match_data() -> dict:
     result = subprocess.run(
         ['node', '-e', '''
-const {GROUP_MATCHES, RANKING, GROUPS, FAVORIETEN, OUTSIDERS, SCORING} = require('./data.js');
+const {GROUP_MATCHES, RANKING, GROUPS, FAVORITES, OUTSIDERS, SCORING} = require('./data.js');
 const out = {
   matches: GROUP_MATCHES.map(m => ({id: m.id, group: m.group, home: m.home, away: m.away})),
   ranking: RANKING,
-  favorieten: FAVORIETEN,
+  favorieten: FAVORITES,
   outsiders: OUTSIDERS,
   scoring: SCORING,
   groups: GROUPS,
@@ -78,6 +78,9 @@ PROMPT_TEMPLATE = """Je bent AI Kees — deelnemer aan de Tempetoto 2026 voetbal
 Je hebt een master Finance en een piratenmasker. Je bent contrair en droog intelligent.
 Je haat hype en marktconsensus. Je finance-achtergrond komt af en toe naar boven maar je
 gooit daar niet constant mee — alleen als het écht ergens op slaat.
+Je woont in Zwitserland en bent er chauvinistisch over: je verrassing is Zwitserland —
+je woont er, je gelooft erin, en je verkoopt dat als koele analyse. Je mag in je
+Zwitserland-scores licht bevooroordeeld zijn, maar niet absurd.
 
 Je taak: maak voorspellingen voor ALLE 72 WK 2026 groepswedstrijden + prematch inzet.
 Je doet dit serieus — dit zijn echte punten en echte eer. Geen random scores.
@@ -115,7 +118,7 @@ Prematch:
 1. Analyseer de odds, rankings en context als een value investor: zoek waar de markt het bij het
    verkeerde eind heeft. Kees gaat contrair waar hij waarde ziet — maar niet per se overal.
 2. Maak voor ELKE wedstrijd een score voorspelling in formaat "X-Y" (thuisploeg-uitploeg).
-3. Kies een kampioen, verrassing, deceptie, topscorer en de statistieken.
+3. Kies een kampioen, verrassing (= Zwitserland), deceptie, topscorer en de statistieken.
 4. Verantwoord je picks kort (Kees-stijl: droog, finance-lens, max 1 zin per pick).
 
 Geef je antwoord als GELDIG JSON (niets anders):
@@ -125,7 +128,7 @@ Geef je antwoord als GELDIG JSON (niets anders):
     "finalist_predicted": "<land in het Nederlands>",
     "surprise": "<outsider-land in het Nederlands>",
     "deception": "<favoriet-land in het Nederlands>",
-    "topscorer": "<spelersnaam>",
+    "topscorer": "<spelersnaam, alléén achternaam, bijv. 'Mbappé'>",
     "topscorerGoals": "<getal>",
     "totalGoals": "<getal>",
     "yellow": "<getal>",
@@ -209,10 +212,17 @@ def valideer(voorspellingen: dict, match_data: dict) -> list[str]:
 def schrijf_naar_datajs(voorspellingen: dict):
     data_js = (REPO_DIR / 'data.js').read_text()
 
+    # top2/best3 afleiden uit de eigen scores (zelfde logica als --afleiden)
+    from verwerk_voorspelling import leid_top2_best3_af
+    pred = {"group": voorspellingen['group'], "top2": {}, "best3": []}
+    leid_top2_best3_af("AI Kees", pred)
+
     # Bouw het JS-blok
     group_entries = ",\n    ".join(
         f'"{k}": "{v}"' for k, v in sorted(voorspellingen['group'].items())
     )
+    top2_js = json.dumps(pred['top2'], ensure_ascii=False)
+    best3_js = json.dumps(pred['best3'], ensure_ascii=False)
     p = voorspellingen['prematch']
     motivatie = voorspellingen.get('motivatie', {})
 
@@ -235,7 +245,9 @@ VOORSPELLINGEN["AI Kees"] = {{
   group: {{
     {group_entries}
   }},
-  top2: {{}}, best3: [], ko: {{R32:[],R16:[],KF:[],HF:[],F:[]}},
+  top2: {top2_js},
+  best3: {best3_js},
+  ko: {{R32:[],R16:[],KF:[],HF:[],F:[]}},
 }};'''
 
     # Vervang bestaand blok als het er al in zit, anders append
