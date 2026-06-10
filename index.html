@@ -694,7 +694,10 @@ function statsRows(){
     const cnt={};
     ingevuld.forEach(n=>{const x=VOORSPELLINGEN[n].prematch[veld];if(x)(cnt[x]=cnt[x]||[]).push(n);});
     Object.entries(cnt).sort((a,b)=>b[1].length-a[1].length).forEach(([x,wie])=>{
-      push(C(veld==="topscorer"?x:flagName(x),"team",3),C(wie.length+"×","center"),C(wie.join(", "),"rules",8));
+      const namen=veld==="topscorer"
+        ? wie.map(n=>`${n} (${VOORSPELLINGEN[n].prematch.topscorerGoals||"?"})`).join(", ")
+        : wie.join(", ");
+      push(C(veld==="topscorer"?x:flagName(x),"team",3),C(wie.length+"×","center"),C(namen,"rules",8));
     });
     if(!Object.keys(cnt).length) push(C("— nog geen keuzes binnen —","subhdr",12));
     rows.push([]);
@@ -761,13 +764,97 @@ function statsRows(){
     });
     rows.push([]);
   }
+
+  // rivaliteitsmatrix: wie spreekt wie tegen + onderlinge duels
+  if(ingevuld.length>=2){
+    const rivalen=[];
+    for(let i=0;i<ingevuld.length;i++) for(let j=i+1;j<ingevuld.length;j++){
+      const a=ingevuld[i],b=ingevuld[j]; let oneens=0,samen=0,wa=0,wb=0;
+      for(const m of GROUP_MATCHES){
+        const pa=parseScore(VOORSPELLINGEN[a].group[m.id]), pb=parseScore(VOORSPELLINGEN[b].group[m.id]);
+        if(!pa||!pb) continue;
+        samen++;
+        if(toto(pa[0],pa[1])!==toto(pb[0],pb[1])){
+          oneens++;
+          if(parseScore(UITSLAGEN.group[m.id])){
+            const sa=scoreGroup(VOORSPELLINGEN[a].group[m.id],UITSLAGEN.group[m.id]);
+            const sb=scoreGroup(VOORSPELLINGEN[b].group[m.id],UITSLAGEN.group[m.id]);
+            if(sa>sb)wa++; else if(sb>sa)wb++;
+          }
+        }
+      }
+      if(samen>=10) rivalen.push({a,b,pct:100*oneens/samen,wa,wb});
+    }
+    rivalen.sort((x,y)=>y.pct-x.pct);
+    push(C("Rivalen — wie spreekt wie het vaakst tegen","grouphdr",12));
+    push(C("Rivaliteit","subhdr",4),C("% oneens","subhdr",2),C("duelstand","subhdr",3));
+    rivalen.slice(0,8).forEach(p=>
+      push(C(`${p.a} ⚔ ${p.b}`,"team",4),C(p.pct.toFixed(0)+"%","center",2),
+           C(p.wa||p.wb?`${p.wa}-${p.wb}`:"—","center",3)));
+    push(C("Duelstand: bij elke wedstrijd waar de twee een andere toto hadden, wint wie daar de meeste punten pakte.","rules",16));
+    rows.push([]);
+  }
+
+  // vorm-curve & streaks (pas zinvol zodra er uitslagen zijn)
+  const gespeeld=GROUP_MATCHES.filter(m=>parseScore(UITSLAGEN.group[m.id]));
+  if(gespeeld.length){
+    const volg=m=>SPEELSCHEMA&&SPEELSCHEMA.groepsfase&&SPEELSCHEMA.groepsfase[m.id]?SPEELSCHEMA.groepsfase[m.id].nr:GROUP_MATCHES.indexOf(m);
+    const chrono=[...gespeeld].sort((a,b)=>volg(a)-volg(b));
+    push(C("Vorm — toto-reeksen en dagrecords","grouphdr",12));
+    push(C("Naam","subhdr",3),C("langste reeks","subhdr",3),C("huidige reeks","subhdr",3),C("beste dag","subhdr",3));
+    ingevuld.map(n=>{
+      let best=0,cur=0;
+      for(const m of chrono){
+        const p=parseScore(VOORSPELLINGEN[n].group[m.id]), r=parseScore(UITSLAGEN.group[m.id]);
+        cur=(p&&toto(p[0],p[1])===toto(r[0],r[1]))?cur+1:0;
+        if(cur>best)best=cur;
+      }
+      let bdag="—";
+      if(HISTORIE&&HISTORIE.length>1){
+        let bd=0,bdat=null;
+        for(let i=1;i<HISTORIE.length;i++){
+          const d=(HISTORIE[i].stand[n]??0)-(HISTORIE[i-1].stand[n]??0);
+          if(d>bd){bd=d;bdat=HISTORIE[i].datum;}
+        }
+        if(bdat) bdag=`+${bd} op ${bdat.slice(5).split("-").reverse().join("/")}`;
+      }
+      return {n,best,cur,bdag};
+    }).sort((a,b)=>b.best-a.best||b.cur-a.cur).forEach(d=>
+      push(C(d.n,"team",3),C(String(d.best),"center",3),C(String(d.cur),"center",3),C(d.bdag,"center",3)));
+    push(C("Reeks = opeenvolgende wedstrijden met de toto goed, in speelvolgorde.","rules",16));
+    rows.push([]);
+  } else {
+    push(C("Vorm & reeksen: beschikbaar zodra de eerste uitslagen binnen zijn.","rules",16));
+    rows.push([]);
+  }
+
+  // kampioenskerkhof
+  push(C("Kampioenskerkhof","grouphdr",12));
+  const kampioenen={};
+  ingevuld.forEach(n=>{const k=VOORSPELLINGEN[n].prematch.champion;if(k)(kampioenen[k]=kampioenen[k]||[]).push(n);});
+  const exitNaam=r=>r==="groep"?"de groepsfase":((KO_ROUNDS.find(x=>x.key===r)||{}).naam||r).toLowerCase();
+  const dood=Object.entries(kampioenen).filter(([l])=>!stillAlive(l));
+  const levend=Object.entries(kampioenen).filter(([l])=>stillAlive(l));
+  dood.forEach(([land,wie])=>{
+    const r=teamReached(land);
+    push(C("🪦","center"),C(flagName(land),"team",3),
+         C(`Hier rust de kampioen van ${wie.join(", ")} — gesneuveld in ${exitNaam(r==null?"groep":r)}.`,"rules",10));
+  });
+  if(!dood.length) push(C("Het kerkhof is nog leeg — alle kampioenen zijn in leven. 🌷","rules",16));
+  if(levend.length&&dood.length)
+    push(C("Nog in leven: "+levend.map(([l,wie])=>`${flagName(l)} (${wie.join(", ")})`).join(" · "),"rules",16));
+  rows.push([]);
+
   return rows;
 }
 
 // ---------- STANDVERLOOP-GRAFIEK ----------
 let HISTORIE=null;
 fetch("stand_historie.json").then(r=>r.ok?r.json():null)
-  .then(h=>{HISTORIE=h;if(CURRENT==="Stand")draw();}).catch(()=>{});
+  .then(h=>{HISTORIE=h;if(CURRENT==="Stand"||CURRENT==="Stats")draw();}).catch(()=>{});
+let SPEELSCHEMA=null; // wedstrijden.json: speelvolgorde voor de vorm-reeksen
+fetch("wedstrijden.json").then(r=>r.ok?r.json():null)
+  .then(w=>{SPEELSCHEMA=w;if(CURRENT==="Stats")draw();}).catch(()=>{});
 const LIJN_KLEUREN=["#B22234","#1c3f7a","#1f8a4c","#E8B923","#7b2d8b","#0aa9a9","#e2711d","#5b6770","#c2185b","#274e13"];
 function chartHTML(){
   if(!HISTORIE||HISTORIE.length<2) return "";
