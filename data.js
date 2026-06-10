@@ -961,6 +961,11 @@ VOORSPELLINGEN["Giezen"].best3 = ["Marokko", "Australië", "Zuid-Korea",
 // (Excel-autocomplete) — bedoeld land is eenduidig Bosnië-Herzegovina.
 VOORSPELLINGEN["Huttenhuis"].best3.push("Bosnië-Herzegovina");
 
+// Topscorer genormaliseerd: 'Kylian Mbappe' (Mark) en 'Mbappe' (Huttenhuis)
+// zijn dezelfde speler als 'Mbappé' — scoring en stats vergelijken exact.
+VOORSPELLINGEN["Mark"].prematch.topscorer = "Mbappé";
+VOORSPELLINGEN["Huttenhuis"].prematch.topscorer = "Mbappé";
+
 // ============================================================
 //  UITSLAGEN (door organisator / later de agent)
 // ============================================================
