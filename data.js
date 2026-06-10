@@ -198,6 +198,241 @@ function leegVoorspelling(){
 const VOORSPELLINGEN = {};
 DEELNEMERS.forEach(n=>{ VOORSPELLINGEN[n]=leegVoorspelling(); });
 
+// >>> VOORSPELLING Pieter (gegenereerd door verwerk_voorspelling.py)
+Object.assign(VOORSPELLINGEN["Pieter"], {
+  "prematch": {
+    "champion": "Frankrijk",
+    "finalist_predicted": "",
+    "surprise": "Noorwegen",
+    "deception": "Argentinië",
+    "topscorer": "Mbappé",
+    "topscorerGoals": 8,
+    "totalGoals": 270,
+    "yellow": 345,
+    "red": 8
+  },
+  "group": {
+    "A1": "1-0",
+    "B1": "1-0",
+    "A2": "1-0",
+    "B2": "0-2",
+    "A3": "1-0",
+    "B3": "2-0",
+    "A4": "1-0",
+    "B4": "2-0",
+    "A5": "0-1",
+    "B5": "1-1",
+    "A6": "0-1",
+    "B6": "2-0",
+    "C1": "1-0",
+    "D1": "1-0",
+    "C2": "0-1",
+    "D2": "0-1",
+    "C3": "0-1",
+    "D3": "1-0",
+    "C4": "3-0",
+    "D4": "1-0",
+    "C5": "0-2",
+    "D5": "1-1",
+    "C6": "2-0",
+    "D6": "1-1",
+    "E1": "3-0",
+    "F1": "1-0",
+    "E2": "0-1",
+    "F2": "1-0",
+    "E3": "2-0",
+    "F3": "1-0",
+    "E4": "3-0",
+    "F4": "0-1",
+    "E5": "0-2",
+    "F5": "1-0",
+    "E6": "0-2",
+    "F6": "0-1",
+    "G1": "1-0",
+    "H1": "3-0",
+    "G2": "1-0",
+    "H2": "0-1",
+    "G3": "2-0",
+    "H3": "3-0",
+    "G4": "0-1",
+    "H4": "2-0",
+    "G5": "1-0",
+    "H5": "1-1",
+    "G6": "0-2",
+    "H6": "0-2",
+    "I1": "1-0",
+    "J1": "1-0",
+    "I2": "0-2",
+    "J2": "2-0",
+    "I3": "3-0",
+    "J3": "1-0",
+    "I4": "1-0",
+    "J4": "0-1",
+    "I5": "0-1",
+    "J5": "1-1",
+    "I6": "2-0",
+    "J6": "0-2",
+    "K1": "2-0",
+    "L1": "1-0",
+    "K2": "0-1",
+    "L2": "1-0",
+    "K3": "2-0",
+    "L3": "2-0",
+    "K4": "1-0",
+    "L4": "0-1",
+    "K5": "0-1",
+    "L5": "0-2",
+    "K6": "1-0",
+    "L6": "1-0"
+  },
+  "top2": {
+    "A": [
+      "Mexico",
+      "Zuid-Korea"
+    ],
+    "B": [
+      "Canada",
+      "Zwitserland"
+    ],
+    "C": [
+      "Brazilië",
+      "Marokko"
+    ],
+    "D": [
+      "Turkije",
+      "Verenigde Staten"
+    ],
+    "E": [
+      "Duitsland",
+      "Ecuador"
+    ],
+    "F": [
+      "Nederland",
+      "Japan"
+    ],
+    "G": [
+      "België",
+      "Iran"
+    ],
+    "H": [
+      "Spanje",
+      "Uruguay"
+    ],
+    "I": [
+      "Frankrijk",
+      "Noorwegen"
+    ],
+    "J": [
+      "Argentinië",
+      "Oostenrijk"
+    ],
+    "K": [
+      "Portugal",
+      "Colombia"
+    ],
+    "L": [
+      "Engeland",
+      "Kroatië"
+    ]
+  },
+  "best3": [
+    "Algerije",
+    "Senegal",
+    "Bosnië-Herzegovina",
+    "Ivoorkust",
+    "Tsjechië",
+    "Zweden",
+    "Schotland",
+    "Iran"
+  ]
+});
+// <<< VOORSPELLING Pieter
+
+// >>> VOORSPELLING Smit (gegenereerd door verwerk_voorspelling.py)
+Object.assign(VOORSPELLINGEN["Smit"], {
+  "prematch": {
+    "champion": "Spanje",
+    "finalist_predicted": "",
+    "surprise": "Canada",
+    "deception": "Marokko",
+    "topscorer": "Kylian Mbappé",
+    "topscorerGoals": 6,
+    "totalGoals": 288,
+    "yellow": 368,
+    "red": 8
+  },
+  "group": {
+    "A1": "2-0",
+    "B1": "1-1",
+    "A2": "1-1",
+    "B2": "0-2",
+    "A3": "2-1",
+    "B3": "1-0",
+    "A4": "2-1",
+    "B4": "2-0",
+    "A6": "0-2",
+    "B5": "1-1",
+    "A5": "0-2",
+    "B6": "2-0",
+    "C1": "2-1",
+    "D1": "1-1",
+    "C2": "0-1",
+    "D2": "1-2",
+    "C3": "0-2",
+    "D3": "2-0",
+    "C4": "4-0",
+    "D4": "1-1",
+    "C5": "0-2",
+    "D5": "1-2",
+    "C6": "3-0",
+    "D6": "1-0",
+    "E1": "4-0",
+    "F1": "1-1",
+    "E2": "1-1",
+    "F2": "2-0",
+    "E3": "2-1",
+    "F3": "2-1",
+    "E4": "3-0",
+    "F4": "0-2",
+    "E5": "0-2",
+    "F6": "0-2",
+    "E6": "1-2",
+    "F5": "1-1",
+    "G1": "2-1",
+    "H1": "3-0",
+    "G2": "1-0",
+    "H2": "1-2",
+    "G3": "2-0",
+    "H3": "3-0",
+    "G4": "0-2",
+    "H4": "2-0",
+    "G6": "0-2",
+    "G5": "1-1",
+    "H6": "1-1",
+    "I1": "2-1",
+    "J1": "2-0",
+    "I2": "0-3",
+    "J2": "2-0",
+    "I3": "3-0",
+    "J3": "2-1",
+    "I6": "2-0",
+    "J5": "1-1",
+    "I5": "1-2",
+    "K1": "3-0",
+    "L1": "2-1",
+    "K2": "0-2",
+    "L2": "1-0",
+    "K3": "2-0",
+    "L3": "1-0",
+    "K5": "1-1",
+    "K6": "1-1",
+    "L6": "2-1"
+  },
+  "top2": {},
+  "best3": []
+});
+// <<< VOORSPELLING Smit
+
 // ============================================================
 //  UITSLAGEN (door organisator / later de agent)
 // ============================================================

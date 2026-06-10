@@ -27,6 +27,7 @@ EJ, Floris, Daniel, Giezen, Huttenhuis, Mark, Pieter, Slotboom, Smit, **AI Kees*
 | `prewedstrijd.js` | Voorspellingen per wedstrijd voor de pre-match preview |
 | `wedstrijden.json` | Speelschema: datum, tijd, stad, stadion per wedstrijd #1-#104 |
 | `maak_kees_voorspellingen.py` | Eenmalig: genereert AI Kees's voorspellingen |
+| `verwerk_voorspelling.py` | Verwerkt ingevulde formulieren (xlsx) naar VOORSPELLINGEN in data.js |
 | `tempetoto-bot.service` | systemd unit voor de bot (chat-modus) |
 | `requirements.txt` | Python-dependencies (venv: `.venv/`) |
 
@@ -58,7 +59,7 @@ Statische HTML/JS site met Excel-look. Tabs per deelnemer + stand-tab.
 - Geel naamveld bovenaan
 - Gridlijnen aan voor Excel-gevoel
 - Lichtblauwe invulvakjes (`pred`-stijl) voor groepswedstrijden + prematch
-- Groepswinnaar/runner-up + beste 8 nummers 3: grijze cellen met "↳ niet invullen" — agent berekent dit
+- Groepswinnaar/runner-up + beste 8 nummers 3: vrij invulbaar met dropdowns (vrije voorspelling, mag afwijken van de eigen scores)
 - KO-brackets als grijze placeholders (later invullen)
 - Verrassing/deceptie tabellen als referentie
 - Hidden "Landen" sheet voor dropdowns (kampioen/verrassing/deceptie)
@@ -68,10 +69,11 @@ Statische HTML/JS site met Excel-look. Tabs per deelnemer + stand-tab.
 1. Naam bovenaan
 2. Prematch: kampioen, verrassing, deceptie, topscorer, goals, kaarten
 3. Groepswedstrijden: 72 scores in formaat `2-1`
+4. Groepswinnaar + runner-up per groep én de 8 beste nummers 3 (vrije voorspelling — telt mee in de scoring)
 
-**Wat de agent berekent (NIET in Excel):**
-- Groepswinnaar + runner-up (uit scores)
-- Beste 8 nummers 3 (uit scores)
+**Verwerken van ingevulde formulieren:** `python3 verwerk_voorspelling.py <naam>.xlsx`
+— parseert het formulier, valideert de invoer (alleen scores/landnamen/getallen) en injecteert in `data.js`. Idempotent: opnieuw draaien vervangt de voorspelling van die deelnemer.
+De agent berekent dus NIETS aan voorspellingen — hij vult alleen werkelijke uitslagen en `UITSLAGEN.advancers` in.
 
 ### ✅ 3. Dagelijkse update-agent (in productie)
 Geïntegreerd in `telegram_bot.py --daily-update`. Geen apart `update_agent.py`.
