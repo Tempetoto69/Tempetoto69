@@ -159,11 +159,19 @@ def parse_formulier(path: Path) -> tuple[str, dict]:
                     best3.append(team)
 
         # Groepswedstrijden: thuis kolom 2/10, uit kolom 4/12, score kolom 5/13
+        # Oude formulier-versies hadden bij sommige wedstrijden thuis/uit
+        # omgedraaid — herken het omgekeerde paar en spiegel de score.
         for home_col, away_col, pred_col in ((2, 4, 5), (10, 12, 13)):
             h, a = v(home_col), v(away_col)
-            match_id = MATCH_BY_TEAMS.get((h, a))
+            match_id, gespiegeld = MATCH_BY_TEAMS.get((h, a)), False
+            if match_id is None and MATCH_BY_TEAMS.get((a, h)):
+                match_id, gespiegeld = MATCH_BY_TEAMS[(a, h)], True
             if match_id:
                 score = norm_score(v(pred_col), f"wedstrijd {match_id} ({h}-{a})")
+                if score and gespiegeld:
+                    score = "-".join(reversed(score.split("-")))
+                    warn(f"wedstrijd {match_id}: thuis/uit omgedraaid in formulier "
+                         f"({h} vs {a}) — score gespiegeld naar {score}")
                 if score:
                     group[match_id] = score
 
