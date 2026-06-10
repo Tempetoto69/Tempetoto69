@@ -9,6 +9,7 @@ Reageert op @ai_kees_bot, 'Kees' in tekst, Smit/uitslag-triggers, en actieve ges
 """
 
 import os
+import re
 import sys
 import json
 import random
@@ -686,6 +687,142 @@ async def run_pre_match():
     log.info(f"Pre-match gepost voor {match_id}")
 
 
+# ── Uitslagen-checker (deterministisch, geen LLM) ─────────────────────────────
+# Draait elk kwartier via cron. Pollt de football API alleen als er volgens het
+# speelschema een groepswedstrijd afgelopen kan zijn waarvan de uitslag nog
+# ontbreekt. Werkt data.js bij, pusht, en laat Kees melden bij een nieuwe leider.
+
+EN_TO_NL = {v: k for k, v in NL_TO_EN.items()}
+
+
+def _lees_group_uitslagen() -> dict:
+    m = re.search(r'const UITSLAGEN = \{\s*group:\{([^}]*)\}', DATA_JS.read_text())
+    return dict(re.findall(r'"([A-L]\d)"\s*:\s*"([^"]+)"', m.group(1))) if m else {}
+
+
+def _schrijf_group_uitslagen(nieuwe: dict) -> str | None:
+    """Voegt uitslagen toe aan UITSLAGEN.group, valideert, rollback bij fout."""
+    src = DATA_JS.read_text()
+    m = re.search(r'(const UITSLAGEN = \{\s*group:\{)([^}]*)(\})', src)
+    if not m:
+        return "UITSLAGEN.group niet gevonden in data.js"
+    alle = dict(re.findall(r'"([A-L]\d)"\s*:\s*"([^"]+)"', m.group(2)))
+    alle.update(nieuwe)
+    inhoud = ",".join(f'"{k}":"{v}"' for k, v in sorted(alle.items()))
+    DATA_JS.write_text(src[:m.start(2)] + inhoud + src[m.end(2):])
+    validatie = subprocess.run(["node", str(REPO_DIR / "valideer_data.js")],
+                               capture_output=True, text=True)
+    if validatie.returncode != 0:
+        DATA_JS.write_text(src)
+        return f"validatie mislukt, teruggedraaid:\n{validatie.stdout}{validatie.stderr}"
+    return None
+
+
+def _klaar_te_checken() -> bool:
+    """Is er een groepswedstrijd die 1u45–6u geleden begon en nog geen uitslag heeft?"""
+    try:
+        schedule = json.loads(SCHEDULE_FILE.read_text()).get("groepsfase", {})
+        bestaand = _lees_group_uitslagen()
+        now = datetime.now(_TZ)
+        for mid, info in schedule.items():
+            if mid in bestaand:
+                continue
+            dt = datetime.strptime(f"{info['datum']} {info['tijd']}",
+                                   "%Y-%m-%d %H:%M").replace(tzinfo=_TZ)
+            if timedelta(hours=1, minutes=45) < now - dt < timedelta(hours=6):
+                return True
+    except Exception as e:
+        log.error(f"_klaar_te_checken fout: {e}")
+    return False
+
+
+def _leiders() -> list[str]:
+    result = subprocess.run(["node", str(REPO_DIR / "bereken_stand.js")],
+                            capture_output=True, text=True, check=True)
+    stand = json.loads(result.stdout)
+    top = stand[0]["totaal"]
+    return [s["naam"] for s in stand if s["totaal"] == top]
+
+
+async def run_check_uitslagen():
+    if not _klaar_te_checken():
+        log.info("Check uitslagen: niets te checken.")
+        return
+
+    matches = json.loads(subprocess.run(
+        ["node", "-e", "console.log(JSON.stringify(require('./data.js').GROUP_MATCHES))"],
+        cwd=REPO_DIR, capture_output=True, text=True, check=True).stdout)
+    by_pair = {}
+    for m in matches:
+        by_pair[(m["home"], m["away"])] = (m["id"], False)
+        by_pair[(m["away"], m["home"])] = (m["id"], True)
+
+    bestaand = _lees_group_uitslagen()
+    nieuwe, beschrijvingen = {}, []
+    for d in (date.today(), date.today() - timedelta(days=1)):
+        try:
+            data = _football_api("fixtures", {"league": WC_LEAGUE_ID,
+                                              "season": WC_SEASON, "date": str(d)})
+        except Exception as e:
+            log.error(f"Football API fout: {e}")
+            return
+        for f in data.get("response", []):
+            if f["fixture"]["status"]["short"] != "FT":
+                continue
+            home = EN_TO_NL.get(f["teams"]["home"]["name"])
+            away = EN_TO_NL.get(f["teams"]["away"]["name"])
+            paar = by_pair.get((home, away))
+            if not paar or paar[0] in bestaand or paar[0] in nieuwe:
+                continue  # KO-wedstrijd, onbekend team, of al verwerkt
+            gh, ga = f["goals"]["home"], f["goals"]["away"]
+            if gh is None:
+                continue
+            mid, flip = paar
+            nieuwe[mid] = f"{ga}-{gh}" if flip else f"{gh}-{ga}"
+            beschrijvingen.append(f"{home} - {away}: {gh}-{ga}")
+
+    if not nieuwe:
+        log.info("Check uitslagen: geen nieuwe afgelopen wedstrijden gevonden.")
+        return
+
+    oude_leiders = _leiders()
+    fout = _schrijf_group_uitslagen(nieuwe)
+    if fout:
+        log.error(f"Check uitslagen: {fout}")
+        return
+
+    subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.name", "Tempetoto Agent"], check=True)
+    subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.email", "agent@tempetoto.nl"], check=True)
+    subprocess.run(["git", "-C", str(REPO_DIR), "add", "data.js"], check=True)
+    if subprocess.run(["git", "-C", str(REPO_DIR), "diff", "--cached", "--quiet"]).returncode != 0:
+        msg = "Update uitslagen: " + ", ".join(f"{k} {v}" for k, v in sorted(nieuwe.items()))
+        subprocess.run(["git", "-C", str(REPO_DIR), "commit", "-m", msg], check=True)
+        subprocess.run(["git", "-C", str(REPO_DIR), "push"], check=True)
+    log.info(f"Uitslagen verwerkt: {nieuwe}")
+    bewaar_stand_snapshot()
+
+    nieuwe_leiders = _leiders()
+    if nieuwe_leiders != oude_leiders and BOT_TOKEN and API_KEY:
+        fmt = lambda namen: " en ".join(namen) if len(namen) <= 3 else "een grote gedeelde kopgroep"
+        opdracht = (f"Nieuws uit de poule: na deze uitslag(en) — {'; '.join(beschrijvingen)} — "
+                    f"staat {fmt(nieuwe_leiders)} nu bovenaan het klassement. "
+                    f"Daarvoor was dat {fmt(oude_leiders)}. "
+                    f"Maak hier als AI Kees één bericht over voor de groep (max 2-3 zinnen). "
+                    f"Sta je er zelf bovenaan, dan mag je daarvan genieten.")
+        reply = _call_claude(
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": opdracht}],
+            tools=CHAT_TOOLS,
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+        )
+        if reply:
+            await Bot(token=BOT_TOKEN).send_message(chat_id=CHAT_ID, text=reply)
+            geschiedenis.append(f"AI Kees: {reply}")
+            _save_history()
+            log.info(f"Leiderschapswissel gemeld: {reply}")
+
+
 # ── Entrypoints ───────────────────────────────────────────────────────────────
 
 async def run_daily_update():
@@ -730,5 +867,7 @@ if __name__ == '__main__':
         asyncio.run(run_daily_update())
     elif '--pre-match' in sys.argv:
         asyncio.run(run_pre_match())
+    elif '--check-uitslagen' in sys.argv:
+        asyncio.run(run_check_uitslagen())
     else:
         main()

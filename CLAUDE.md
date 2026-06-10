@@ -94,6 +94,13 @@ cron (08:00, lokale machine) → telegram_bot.py --daily-update
 Deduplicatie via `geposte_updates.json` (max één update per dag).
 Cron-output gaat naar `cron.log`; de bot logt zelf naar `bot.log` (geroteerd, max ~2MB ×4).
 
+**Uitslagen-checker (elk kwartier, deterministisch — geen LLM):** `--check-uitslagen`
+pollt de football API alleen als er volgens `wedstrijden.json` een groepswedstrijd
+1u45–6u geleden begon waarvan de uitslag nog mist. Nieuwe uitslag → data.js bijwerken
+(regex op UITSLAGEN.group, validatie + rollback), pushen, stand-snapshot. Pakt iemand
+de leiding, dan meldt Kees dat in de groep (Haiku). KO-uitslagen, advancers, topscorers
+en kaarten blijven bij de dagelijkse 08:00-update (Sonnet).
+
 ### ✅ 4. Telegram-bot + AI Kees (in productie)
 Draait als systemd service `tempetoto-bot` (chat-modus, polling).
 Herstart na code-wijzigingen: `sudo systemctl restart tempetoto-bot`.
