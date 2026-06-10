@@ -28,6 +28,7 @@ EJ, Floris, Daniel, Giezen, Huttenhuis, Mark, Pieter, Slotboom, Smit, **AI Kees*
 | `wedstrijden.json` | Speelschema: datum, tijd, stad, stadion per wedstrijd #1-#104 |
 | `maak_kees_voorspellingen.py` | Eenmalig: genereert AI Kees's voorspellingen |
 | `verwerk_voorspelling.py` | Verwerkt ingevulde formulieren (xlsx) naar VOORSPELLINGEN in data.js |
+| `stand_historie.json` | Dagelijkse stand-snapshots (bot schrijft na de 08:00-update) → standverloop-grafiek |
 | `tempetoto-bot.service` | systemd unit voor de bot (chat-modus) |
 | `requirements.txt` | Python-dependencies (venv: `.venv/`) |
 
@@ -47,7 +48,9 @@ Stel altijd een vraag als iets onduidelijk is. Er is veel zorgvuldig aan geschaa
 ## Componenten & status
 
 ### ✅ 1. Website (in productie)
-Statische HTML/JS site met Excel-look. Tabs per deelnemer + stand-tab.
+Statische HTML/JS site met Excel-look. Tabs: Stand, Stats, per deelnemer, All Time.
+- Stand-tab: ook "Max" (maximaal haalbare eindscore) + standverloop-grafiek (uit `stand_historie.json`)
+- Stats-tab: kampioen/topscorer/verrassing/deceptie-verdeling, optimisme, eigenwijsheid, gelijkenis tussen deelnemers
 - Titelbalken: rood (`#B22234`)
 - Mobile-vriendelijk (iOS dvh-fix, smooth scroll)
 - Spelregels en puntentelling ingebakken in `data.js`

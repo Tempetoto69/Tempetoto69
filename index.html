@@ -210,6 +210,44 @@ function deceptionPts(land){
   return ex ? deceptionPtsFor(land, ex) : 0;
 }
 
+// Maximaal haalbare eindscore: "alles wat nog open staat valt goed".
+// KO-rondes zonder uitslag tellen volledig mee — voorspellingen daarvoor komen pas vóór elke ronde.
+function stillAlive(land){
+  if(UITSLAGEN.facts.champion) return UITSLAGEN.facts.champion===land;
+  const r=teamReached(land);
+  const volgende = r==null ? "R32" : {R32:"R16",R16:"KF",KF:"HF",HF:"F"}[r];
+  if(!volgende) return true; // staat in de finale
+  return !rondeGevuld(volgende);
+}
+function maxScore(naam,cur){
+  if(UITSLAGEN.facts.champion) return cur.totaal; // toernooi klaar
+  const v=VOORSPELLINGEN[naam], u=UITSLAGEN, p=v.prematch;
+  let max=cur.group+cur.advance+cur.ko;
+  for(const m of GROUP_MATCHES)
+    if(!parseScore(u.group[m.id])&&parseScore(v.group[m.id])) max+=SCORING.group.toto+SCORING.group.exact;
+  for(const g of Object.keys(GROUPS))
+    if(!(u.advancers.top2[g]||[]).length) max+=(v.top2[g]||[]).filter(Boolean).length*SCORING.advance.perTeam;
+  if(!(u.advancers.best3||[]).length) max+=(v.best3||[]).filter(Boolean).length*SCORING.advance.perTeam;
+  for(const r of KO_ROUNDS)
+    (u.ko.brackets[r.key]||[]).forEach((_,i)=>{ if(!parseScore((u.ko.results[r.key]||[])[i])) max+=r.toto+r.exact; });
+  if(p.champion&&stillAlive(p.champion)) max+=SCORING.champion.winner;
+  if(p.surprise) max+= stillAlive(p.surprise)
+    ? Math.round(SCORING.surprise.base.winner*surpriseFactor(p.surprise))
+    : surprisePts(p.surprise);
+  if(p.deception){
+    const r=teamReached(p.deception);
+    const best=deceptionExit(p.deception)||
+      (r==null ? (rondeGevuld("R32")?null:"groep") : {R32:"R32",R16:"R16",KF:"KF"}[r]||null);
+    if(best) max+=deceptionPtsFor(p.deception,best);
+  }
+  if(p.topscorer)            max+=SCORING.topscorer.p1;
+  if(p.topscorerGoals!=="")  max+=SCORING.topscorer.exactGoals;
+  if(p.totalGoals!=="")      max+=SCORING.totalGoals.exact;
+  if(p.yellow!=="")          max+=SCORING.cards.exact;
+  if(p.red!=="")             max+=SCORING.cards.exact;
+  return max;
+}
+
 function computeScore(naam){
   const v=VOORSPELLINGEN[naam], u=UITSLAGEN;
   let group=0,advance=0,ko=0,prematch=0;
@@ -539,8 +577,8 @@ function standRows(){
   rows.push([C("Tussenstand Tempetoto 2026","title-cell",16)]);
   rows.push([]);
   // koprij — spanning op brede kolommen: #(1) naam(5) gr.fase(4) KO(3) totaal(3)
-  rows.push([C("#","grouphdr",2),C("Naam","grouphdr",5),C("Groepsfase","grouphdr",4),C("KO-rondes","grouphdr",3),C("Totaal","grouphdr",3)]);
-  const data=DEELNEMERS.map(n=>({naam:n,...computeScore(n)})).sort((a,b)=>b.totaal-a.totaal);
+  rows.push([C("#","grouphdr",2),C("Naam","grouphdr",5),C("Groepsfase","grouphdr",4),C("KO-rondes","grouphdr",3),C("Totaal","grouphdr",3),C("Max","grouphdr",3)]);
+  const data=DEELNEMERS.map(n=>{const sc=computeScore(n);return {naam:n,...sc,max:maxScore(n,sc)};}).sort((a,b)=>b.totaal-a.totaal);
   let lastPts=null, currentRank=0;
   data.forEach((d,i)=>{
     if(d.totaal!==lastPts){lastPts=d.totaal;currentRank=i+1;}
@@ -552,8 +590,10 @@ function standRows(){
       C(String(d.voorrondes),"center",4),
       C(String(d.finalerondes),"center",3),
       C(String(d.totaal),"pt",3),
+      C(String(d.max),"center",3),
     ]);
   });
+  rows.push([C("Max = hoogste eindscore die nog haalbaar is als alles wat open staat goed valt.","rules",16)]);
   rows.push([]);
   // statistiek
   const f=UITSLAGEN.facts;
@@ -638,10 +678,130 @@ function alltimeRows(){
   return rows;
 }
 
+// ---------- STATS-SHEET ----------
+function statsRows(){
+  const rows=[]; const push=(...c)=>rows.push(c);
+  const ingevuld=DEELNEMERS.filter(n=>Object.keys(VOORSPELLINGEN[n].group||{}).length>0);
+  push(C("Statistieken — de voorspellingen onder de loep","title-cell",16));
+  push(C(`Gebaseerd op ${ingevuld.length} van de ${DEELNEMERS.length} ingeleverde voorspellingen.`,"rules",16));
+  rows.push([]);
+
+  // verdeling van de prematch-keuzes
+  const verdeling=(label,veld)=>{
+    push(C(label,"grouphdr",12));
+    const cnt={};
+    ingevuld.forEach(n=>{const x=VOORSPELLINGEN[n].prematch[veld];if(x)(cnt[x]=cnt[x]||[]).push(n);});
+    Object.entries(cnt).sort((a,b)=>b[1].length-a[1].length).forEach(([x,wie])=>{
+      push(C(veld==="topscorer"?x:flagName(x),"team",3),C(wie.length+"×","center"),C(wie.join(", "),"rules",8));
+    });
+    if(!Object.keys(cnt).length) push(C("— nog geen keuzes binnen —","subhdr",12));
+    rows.push([]);
+  };
+  verdeling("Kampioen","champion");
+  verdeling("Topscorer","topscorer");
+  verdeling("Verrassing","surprise");
+  verdeling("Deceptie","deception");
+
+  // optimisme: gemiddeld voorspelde goals per wedstrijd
+  push(C("Optimisme — voorspelde goals","grouphdr",12));
+  push(C("Naam","subhdr",3),C("gem. per wedstrijd","subhdr",3),C("totaal goals WK","subhdr",3));
+  ingevuld.map(n=>{
+    const sc=Object.values(VOORSPELLINGEN[n].group).map(parseScore).filter(Boolean);
+    const avg=sc.length?sc.reduce((a,p)=>a+p[0]+p[1],0)/sc.length:0;
+    return {n,avg,tot:VOORSPELLINGEN[n].prematch.totalGoals||"—"};
+  }).sort((a,b)=>b.avg-a.avg).forEach(d=>
+    push(C(d.n,"team",3),C(d.avg.toFixed(2),"center",3),C(String(d.tot),"center",3)));
+  rows.push([]);
+
+  // eigenwijsheid + unieke toto's (heeft minstens 3 voorspellingen nodig)
+  if(ingevuld.length>=3){
+    const stats={}; ingevuld.forEach(n=>stats[n]={af:0,tot:0,uniek:0});
+    for(const m of GROUP_MATCHES){
+      const ts=ingevuld.map(n=>{const p=parseScore(VOORSPELLINGEN[n].group[m.id]);return p?{n,t:toto(p[0],p[1])}:null;}).filter(Boolean);
+      if(ts.length<3) continue;
+      const cnt={}; ts.forEach(x=>cnt[x.t]=(cnt[x.t]||0)+1);
+      const maxC=Math.max(...Object.values(cnt));
+      ts.forEach(x=>{
+        stats[x.n].tot++;
+        if(cnt[x.t]!==maxC) stats[x.n].af++;
+        if(cnt[x.t]===1) stats[x.n].uniek++;
+      });
+    }
+    push(C("Eigenwijsheid — afwijken van de meerderheids-toto","grouphdr",12));
+    push(C("Naam","subhdr",3),C("% afwijkend","subhdr",3),C("unieke toto's","subhdr",3));
+    ingevuld.map(n=>({n,...stats[n],pct:stats[n].tot?100*stats[n].af/stats[n].tot:0}))
+      .sort((a,b)=>b.pct-a.pct)
+      .forEach(d=>push(C(d.n,"team",3),C(d.pct.toFixed(0)+"%","center",3),C(String(d.uniek),"center",3)));
+    rows.push([]);
+  } else {
+    push(C("Eigenwijsheid & unieke toto's: beschikbaar zodra 3+ voorspellingen binnen zijn.","rules",16));
+    rows.push([]);
+  }
+
+  // gelijkenis tussen deelnemers
+  if(ingevuld.length>=2){
+    const paren=[];
+    for(let i=0;i<ingevuld.length;i++) for(let j=i+1;j<ingevuld.length;j++){
+      const a=ingevuld[i],b=ingevuld[j]; let zelfde=0,samen=0;
+      for(const m of GROUP_MATCHES){
+        const pa=parseScore(VOORSPELLINGEN[a].group[m.id]), pb=parseScore(VOORSPELLINGEN[b].group[m.id]);
+        if(!pa||!pb) continue;
+        samen++; if(toto(pa[0],pa[1])===toto(pb[0],pb[1])) zelfde++;
+      }
+      if(samen>=10) paren.push({a,b,pct:100*zelfde/samen});
+    }
+    paren.sort((x,y)=>y.pct-x.pct);
+    push(C("Twee handen op één buik — % gelijke toto's","grouphdr",12));
+    const toon=paren.length>13?[...paren.slice(0,8),null,...paren.slice(-3)]:paren;
+    toon.forEach(p=>{
+      if(!p){push(C("⋮","subhdr",9));return;}
+      push(C(`${p.a} & ${p.b}`,"team",4),C(p.pct.toFixed(0)+"%","center",2));
+    });
+    rows.push([]);
+  }
+  return rows;
+}
+
+// ---------- STANDVERLOOP-GRAFIEK ----------
+let HISTORIE=null;
+fetch("stand_historie.json").then(r=>r.ok?r.json():null)
+  .then(h=>{HISTORIE=h;if(CURRENT==="Stand")draw();}).catch(()=>{});
+const LIJN_KLEUREN=["#B22234","#1c3f7a","#1f8a4c","#E8B923","#7b2d8b","#0aa9a9","#e2711d","#5b6770","#c2185b","#274e13"];
+function chartHTML(){
+  if(!HISTORIE||HISTORIE.length<2) return "";
+  const W=760,H=330,P={l:42,r:130,t:16,b:30};
+  const maxY=Math.max(10,...HISTORIE.flatMap(s=>Object.values(s.stand||{})));
+  const x=i=>P.l+(W-P.l-P.r)*i/(HISTORIE.length-1);
+  const y=v=>H-P.b-(H-P.t-P.b)*v/maxY;
+  let svg="";
+  const stap=Math.max(10,Math.ceil(maxY/5/10)*10);
+  for(let v=0;v<=maxY;v+=stap){
+    svg+=`<line x1="${P.l}" y1="${y(v)}" x2="${W-P.r}" y2="${y(v)}" stroke="#e2e7f0"/>`+
+         `<text x="${P.l-6}" y="${y(v)+4}" font-size="10" fill="#777" text-anchor="end">${v}</text>`;
+  }
+  const dat=i=>HISTORIE[i].datum.slice(5).split("-").reverse().join("/");
+  [0,Math.floor((HISTORIE.length-1)/2),HISTORIE.length-1].filter((v,i,a)=>a.indexOf(v)===i).forEach(i=>{
+    svg+=`<text x="${x(i)}" y="${H-10}" font-size="10" fill="#777" text-anchor="middle">${dat(i)}</text>`;
+  });
+  const kleur={}; DEELNEMERS.forEach((n,i)=>kleur[n]=LIJN_KLEUREN[i%LIJN_KLEUREN.length]);
+  DEELNEMERS.forEach(n=>{
+    const pts=HISTORIE.map((s,i)=>`${x(i).toFixed(1)},${y(s.stand[n]??0).toFixed(1)}`).join(" ");
+    svg+=`<polyline fill="none" stroke="${kleur[n]}" stroke-width="2" points="${pts}"/>`;
+  });
+  const laatste=HISTORIE[HISTORIE.length-1].stand||{};
+  [...DEELNEMERS].sort((a,b)=>(laatste[b]??0)-(laatste[a]??0)).forEach((n,i)=>{
+    const ly=P.t+10+i*19;
+    svg+=`<rect x="${W-P.r+10}" y="${ly-8}" width="10" height="10" fill="${kleur[n]}"/>`+
+         `<text x="${W-P.r+25}" y="${ly+1}" font-size="11" fill="#333">${n} (${laatste[n]??0})</text>`;
+  });
+  return `<div style="padding:14px 14px 24px"><div class="hdr-blue" style="margin-bottom:6px">Standverloop</div>`+
+         `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${svg}</svg></div>`;
+}
+
 // ---------- TABS ----------
 function renderTabs(){
   const tabs=document.getElementById("tabs");tabs.innerHTML="";
-  const all=["Stand",...DEELNEMERS,"All Time"];
+  const all=["Stand","Stats",...DEELNEMERS,"All Time"];
   all.forEach(name=>{
     const b=document.createElement("button");
     b.textContent=name;b.className=name===CURRENT?"active":"";
@@ -653,9 +813,14 @@ function draw(){
   renderTabs();
   document.getElementById("namestrip").textContent =
     CURRENT==="Stand" ? "Stand" :
+    CURRENT==="Stats" ? "Statistieken" :
     CURRENT==="All Time" ? "All Time Tempetoto Ranking" :
     "Voorspellingen — "+CURRENT;
-  if(CURRENT==="Stand") renderGrid(standRows());
+  if(CURRENT==="Stand"){
+    renderGrid(standRows());
+    document.getElementById("sheet").insertAdjacentHTML("beforeend",chartHTML());
+  }
+  else if(CURRENT==="Stats") renderGrid(statsRows());
   else if(CURRENT==="All Time") renderGrid(alltimeRows(),{ncols:12,widths:[34,36,28,60,60,62,62,62,62,62,62,62,65]});
   else renderGrid(participantRows(CURRENT));
   document.querySelector(".sheetwrap").scrollTop=0;

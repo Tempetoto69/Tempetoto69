@@ -43,6 +43,7 @@ SCHEDULE_FILE    = REPO_DIR / 'wedstrijden.json'
 
 HISTORY_FILE  = REPO_DIR / 'chat_history.json'
 PREMATCH_FILE = REPO_DIR / 'geposte_prematch.json'
+HIST_FILE     = REPO_DIR / 'stand_historie.json'
 
 FOOTBALL_API_BASE = 'https://v3.football.api-sports.io'
 WC_LEAGUE_ID      = 1
@@ -155,7 +156,11 @@ TOOL_GET_SCHEDULE = {
 
 TOOL_GET_STANDINGS = {
     "name": "get_standings",
-    "description": "Berekent de huidige puntentelling en stand voor alle deelnemers. Geeft JSON met rang, naam en punten per categorie.",
+    "description": (
+        "Berekent de huidige puntentelling en stand voor alle deelnemers. Geeft JSON met rang, "
+        "naam, punten per categorie en 'max' (maximaal haalbare eindscore). Bevat ook "
+        "'vorige_snapshot' (de stand van de vorige dag) zodat je punten-per-dag kunt vergelijken."
+    ),
     "input_schema": {"type": "object", "properties": {}, "required": []},
 }
 
@@ -279,7 +284,13 @@ def run_tool(name: str, tool_input: dict, allow_write: bool = False) -> str:
                 ["node", str(REPO_DIR / "bereken_stand.js")],
                 capture_output=True, text=True, check=True,
             )
-            return result.stdout
+            out = {"stand": json.loads(result.stdout)}
+            if HIST_FILE.exists():
+                eerder = [h for h in json.loads(HIST_FILE.read_text())
+                          if h.get("datum", "") < str(date.today())]
+                if eerder:
+                    out["vorige_snapshot"] = eerder[-1]
+            return json.dumps(out, ensure_ascii=False)
         except subprocess.CalledProcessError as e:
             return f"Fout bij berekening: {e.stderr}"
 
@@ -409,7 +420,14 @@ Speciale taak: dagelijkse Tempetoto stand-update.
    - Check hoe Smit het deed. Had hij een van de nieuwe wedstrijden verkeerd voorspeld: zeg precies
      "wat kan je wel smit" (kleine letters, geen punt) ergens in het bericht. Staat hij laag of is
      hij gezakt: maak er een zure opmerking over.
-   - Blijf volledig in karakter — droog, contrair. Max 5-6 zinnen.
+   - Beste voorspeller van de dag: vergelijk de stand met vorige_snapshot in get_standings en
+     benoem wie sinds gisteren de meeste punten pakte. Droog — het is een observatie, geen compliment.
+   - Kijk in de voorspellingen (get_data) of iemand opvallend zat: als enige een uitslag goed of
+     juist fout, of iemands kampioen/verrassing/deceptie die in de problemen komt. Maximaal één
+     zo'n observatie per update, en alleen als die echt opvalt.
+   - Later in het toernooi: 'max' per deelnemer in get_standings zegt wie er nog kan winnen.
+     Wordt dat krap voor iemand, dan mag je dat fijntjes benoemen.
+   - Blijf volledig in karakter — droog, contrair. Max 7-8 zinnen.
 6. Geef alleen het Telegram-bericht terug als eindantwoord."""
 
     return _call_claude(
@@ -423,6 +441,32 @@ Speciale taak: dagelijkse Tempetoto stand-update.
 
 
 # ── Deduplicatie ──────────────────────────────────────────────────────────────
+
+def bewaar_stand_snapshot():
+    """Legt de stand van vandaag vast in stand_historie.json en pusht —
+    de website tekent hier de standverloop-grafiek mee."""
+    try:
+        result = subprocess.run(
+            ["node", str(REPO_DIR / "bereken_stand.js")],
+            capture_output=True, text=True, check=True,
+        )
+        stand = {s["naam"]: s["totaal"] for s in json.loads(result.stdout)}
+        historie = json.loads(HIST_FILE.read_text()) if HIST_FILE.exists() else []
+        vandaag = str(date.today())
+        historie = [h for h in historie if h.get("datum") != vandaag]
+        historie.append({"datum": vandaag, "stand": stand})
+        HIST_FILE.write_text(json.dumps(historie, ensure_ascii=False, indent=1))
+
+        subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.name", "Tempetoto Agent"], check=True)
+        subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.email", "agent@tempetoto.nl"], check=True)
+        subprocess.run(["git", "-C", str(REPO_DIR), "add", "stand_historie.json"], check=True)
+        if subprocess.run(["git", "-C", str(REPO_DIR), "diff", "--cached", "--quiet"]).returncode != 0:
+            subprocess.run(["git", "-C", str(REPO_DIR), "commit", "-m", f"Stand-snapshot {vandaag}"], check=True)
+            subprocess.run(["git", "-C", str(REPO_DIR), "push"], check=True)
+        log.info(f"Stand-snapshot {vandaag} opgeslagen.")
+    except Exception as e:
+        log.error(f"Stand-snapshot mislukt: {e}")
+
 
 def already_posted_today() -> bool:
     if not POSTED_FILE.exists():
@@ -664,6 +708,7 @@ async def run_daily_update():
     await bot.send_message(chat_id=CHAT_ID, text=bericht)
     mark_posted_today()
     log.info(f"Dagelijkse update gepost: {bericht}")
+    bewaar_stand_snapshot()
 
 
 def main():

@@ -77,6 +77,56 @@ function deceptionPts(land) {
   return b != null ? Math.round(b * deceptionFactor(land)) : 0;
 }
 
+// ── Maximaal haalbare eindscore ───────────────────────────────────────────────
+// "Alles wat nog open staat valt goed." Voor KO-rondes zonder uitslag telt de
+// volle buit, ook zonder voorspelling — die wordt pas vóór elke ronde ingevuld.
+function stillAlive(land) {
+  if (UITSLAGEN.facts.champion) return UITSLAGEN.facts.champion === land;
+  const r = teamReached(land);
+  const volgende = r == null ? 'R32' : { R32: 'R16', R16: 'KF', KF: 'HF', HF: 'F' }[r];
+  if (!volgende) return true; // staat in de finale
+  return !rondeGevuld(volgende);
+}
+
+function maxScore(naam, cur) {
+  if (UITSLAGEN.facts.champion) return cur.totaal; // toernooi klaar
+  const v = VOORSPELLINGEN[naam], u = UITSLAGEN, p = v.prematch;
+  let max = cur.group + cur.advance + cur.ko;
+
+  for (const m of GROUP_MATCHES)
+    if (!parseScore(u.group[m.id]) && parseScore(v.group[m.id]))
+      max += SCORING.group.toto + SCORING.group.exact;
+
+  for (const g of Object.keys(GROUPS))
+    if (!(u.advancers.top2[g] || []).length)
+      max += (v.top2[g] || []).filter(Boolean).length * SCORING.advance.perTeam;
+  if (!(u.advancers.best3 || []).length)
+    max += (v.best3 || []).filter(Boolean).length * SCORING.advance.perTeam;
+
+  for (const r of KO_ROUNDS)
+    (u.ko.brackets[r.key] || []).forEach((_, i) => {
+      if (!parseScore((u.ko.results[r.key] || [])[i])) max += r.toto + r.exact;
+    });
+
+  if (p.champion && stillAlive(p.champion)) max += SCORING.champion.winner;
+  if (p.surprise) max += stillAlive(p.surprise)
+    ? Math.round(SCORING.surprise.base.winner * surpriseFactor(p.surprise))
+    : surprisePts(p.surprise);
+  if (p.deception) {
+    const r = teamReached(p.deception);
+    const best = deceptionExit(p.deception) ||
+      (r == null ? (rondeGevuld('R32') ? null : 'groep')
+                 : { R32: 'R32', R16: 'R16', KF: 'KF' }[r] || null);
+    if (best) max += Math.round((SCORING.deception.base[best] || 0) * deceptionFactor(p.deception));
+  }
+  if (p.topscorer)            max += SCORING.topscorer.p1;
+  if (p.topscorerGoals !== '') max += SCORING.topscorer.exactGoals;
+  if (p.totalGoals !== '')     max += SCORING.totalGoals.exact;
+  if (p.yellow !== '')         max += SCORING.cards.exact;
+  if (p.red !== '')            max += SCORING.cards.exact;
+  return max;
+}
+
 function computeScore(naam) {
   const v = VOORSPELLINGEN[naam], u = UITSLAGEN;
   let group = 0, advance = 0, ko = 0, prematch = 0;
@@ -125,7 +175,7 @@ function computeScore(naam) {
 }
 
 const scores = DEELNEMERS
-  .map(computeScore)
+  .map(n => { const s = computeScore(n); return { ...s, max: maxScore(n, s) }; })
   .sort((a, b) => b.totaal - a.totaal)
   .map((s, i) => ({ ...s, rank: i + 1 }));
 
