@@ -137,7 +137,12 @@ haal get_standings op en reken het écht uit met 'max' (maximaal haalbare eindsc
 stijgen, dus: is zijn max lager dan de huidige punten van de koploper, dan is hij wiskundig uitgeschakeld —
 meld dat zonder verzachting, als een analist die een fonds afwaardeert. Kan het nog wel, noem dan het
 verschil in punten, maar verpak de hoop meedogenloos ("theoretisch kun je nog winnen. theoretisch kan
-Panama ook wereldkampioen worden."). Cijfers eerst, gevoelens nooit. Maximaal 3 zinnen, zoals altijd."""
+Panama ook wereldkampioen worden."). Cijfers eerst, gevoelens nooit. Maximaal 3 zinnen, zoals altijd.
+
+STANDFEITJES:
+Komt de stand of iemands prestatie ter sprake, dan mag je af en toe — lang niet elke keer — get_standings
+erbij pakken en er één droog feitje uit droppen: wie de sterkste opmars maakt (vergelijk met vorige_snapshot),
+of dat de koploper uitloopt. Eén feitje, geen analyse, en alleen als het in het gesprek past."""
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
 
@@ -490,18 +495,28 @@ def bewaar_stand_snapshot():
         log.error(f"Stand-snapshot mislukt: {e}")
 
 
-def already_posted_today() -> bool:
-    if not POSTED_FILE.exists():
-        return False
+def _posted_get(key: str):
+    try:
+        return json.loads(POSTED_FILE.read_text()).get(key)
+    except Exception:
+        return None
+
+
+def _posted_set(key: str):
     try:
         data = json.loads(POSTED_FILE.read_text())
-        return data.get("last_date") == str(date.today())
     except Exception:
-        return False
+        data = {}
+    data[key] = str(date.today())
+    POSTED_FILE.write_text(json.dumps(data))
+
+
+def already_posted_today() -> bool:
+    return _posted_get("last_date") == str(date.today())
 
 
 def mark_posted_today():
-    POSTED_FILE.write_text(json.dumps({"last_date": str(date.today())}))
+    _posted_set("last_date")
 
 
 # ── Gesprekvenster ────────────────────────────────────────────────────────────
@@ -757,12 +772,41 @@ def _klaar_te_checken() -> bool:
     return False
 
 
-def _leiders() -> list[str]:
+def _stand() -> list[dict]:
     result = subprocess.run(["node", str(REPO_DIR / "bereken_stand.js")],
                             capture_output=True, text=True, check=True)
-    stand = json.loads(result.stdout)
+    return json.loads(result.stdout)
+
+
+def _leiders(stand: list[dict]) -> list[str]:
     top = stand[0]["totaal"]
     return [s["naam"] for s in stand if s["totaal"] == top]
+
+
+def _standfeit(oud: list[dict], nieuw: list[dict]) -> str | None:
+    """Deterministisch feitje over de stand: sterkste opmars (≥2 plekken) of
+    een koploper die verder uitloopt. None als er niets opvallends is."""
+    rang = lambda stand: {s["naam"]: 1 + sum(1 for x in stand if x["totaal"] > s["totaal"])
+                          for s in stand}
+    pnt = lambda stand: {s["naam"]: s["totaal"] for s in stand}
+    oud_r, nieuw_r, oud_p, nieuw_p = rang(oud), rang(nieuw), pnt(oud), pnt(nieuw)
+
+    klimmers = sorted(((oud_r[n] - nieuw_r[n], n) for n in nieuw_r if n in oud_r), reverse=True)
+    if klimmers and klimmers[0][0] >= 2:
+        plekken, naam = klimmers[0]
+        return (f"{naam} maakt een opmars: van plek {oud_r[naam]} naar plek {nieuw_r[naam]} "
+                f"({plekken} plekken geklommen, nu {nieuw_p[naam]} punten)")
+
+    oude_top, nieuwe_top = _leiders(oud), _leiders(nieuw)
+    if len(nieuwe_top) == 1 and nieuwe_top == oude_top:
+        twee_oud = max((oud_p[n] for n in oud_p if n != oude_top[0]), default=None)
+        twee_nieuw = max((nieuw_p[n] for n in nieuw_p if n != nieuwe_top[0]), default=None)
+        if twee_oud is not None and twee_nieuw is not None:
+            gat_oud, gat_nieuw = oud_p[oude_top[0]] - twee_oud, nieuw_p[nieuwe_top[0]] - twee_nieuw
+            if gat_nieuw > gat_oud:
+                return (f"koploper {nieuwe_top[0]} verstevigt de koppositie: de voorsprong "
+                        f"op nummer 2 groeit van {gat_oud} naar {gat_nieuw} punten")
+    return None
 
 
 async def run_check_uitslagen():
@@ -806,7 +850,7 @@ async def run_check_uitslagen():
         log.info("Check uitslagen: geen nieuwe afgelopen wedstrijden gevonden.")
         return
 
-    oude_leiders = _leiders()
+    oude_stand = _stand()
     fout = _schrijf_group_uitslagen(nieuwe)
     if fout:
         log.error(f"Check uitslagen: {fout}")
@@ -822,14 +866,28 @@ async def run_check_uitslagen():
     log.info(f"Uitslagen verwerkt: {nieuwe}")
     bewaar_stand_snapshot()
 
-    nieuwe_leiders = _leiders()
-    if nieuwe_leiders != oude_leiders and BOT_TOKEN and API_KEY:
+    nieuwe_stand = _stand()
+    oude_leiders, nieuwe_leiders = _leiders(oude_stand), _leiders(nieuwe_stand)
+    opdracht = None
+    if nieuwe_leiders != oude_leiders:
         fmt = lambda namen: " en ".join(namen) if len(namen) <= 3 else "een grote gedeelde kopgroep"
         opdracht = (f"Nieuws uit de poule: na deze uitslag(en) — {'; '.join(beschrijvingen)} — "
                     f"staat {fmt(nieuwe_leiders)} nu bovenaan het klassement. "
                     f"Daarvoor was dat {fmt(oude_leiders)}. "
                     f"Maak hier als AI Kees één bericht over voor de groep (max 2-3 zinnen). "
                     f"Sta je er zelf bovenaan, dan mag je daarvan genieten.")
+        log_label = "Leiderschapswissel gemeld"
+    else:
+        # Af en toe een droog standfeitje: max één per dag, en niet elke keer
+        feit = _standfeit(oude_stand, nieuwe_stand)
+        if feit and _posted_get("standfeit") != str(date.today()) and random.random() < 0.6:
+            opdracht = (f"Feitje uit de poule: na deze uitslag(en) — {'; '.join(beschrijvingen)} — "
+                        f"geldt: {feit}. Drop dit als AI Kees droogjes in de groep, "
+                        f"max 2 zinnen. Gaat het over jezelf, dan mag je daarvan genieten; "
+                        f"gaat het over Smit, dan weet je wat je te doen staat.")
+            log_label = "Standfeitje gemeld"
+
+    if opdracht and BOT_TOKEN and API_KEY:
         reply = _call_claude(
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": opdracht}],
@@ -841,7 +899,9 @@ async def run_check_uitslagen():
             await Bot(token=BOT_TOKEN).send_message(chat_id=CHAT_ID, text=reply)
             geschiedenis.append(f"AI Kees: {reply}")
             _save_history()
-            log.info(f"Leiderschapswissel gemeld: {reply}")
+            if log_label == "Standfeitje gemeld":
+                _posted_set("standfeit")
+            log.info(f"{log_label}: {reply}")
 
 
 # ── Entrypoints ───────────────────────────────────────────────────────────────
