@@ -801,6 +801,13 @@ Object.assign(VOORSPELLINGEN["Smit"], {
 VOORSPELLINGEN["Giezen"].prematch.championNote =
   "(absoluut nul kan, maar ik kan niet anders - ben geen verrader)";
 
+// Giezens best3 gecorrigeerd met zijn akkoord (10 juni 2026): 'Nigerië' en
+// 'Polen' doen niet mee, Paraguay/Australië was dubbel (groep D), Egypte was
+// al zijn runner-up G. Aangevuld met de sterkste nummers 3 volgens zijn eigen
+// voorspelde scores.
+VOORSPELLINGEN["Giezen"].best3 = ["Marokko", "Australië", "Zuid-Korea",
+  "Bosnië-Herzegovina", "Colombia", "Nieuw-Zeeland", "Senegal", "Ghana"];
+
 // ============================================================
 //  UITSLAGEN (door organisator / later de agent)
 // ============================================================
