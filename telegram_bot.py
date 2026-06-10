@@ -349,17 +349,27 @@ def run_tool(name: str, tool_input: dict, allow_write: bool = False) -> str:
 
 # ── Claude aanroepen ──────────────────────────────────────────────────────────
 
+GEEN_CREDITS_BERICHT = ("die arme ploert van een Floris heeft niet voldoende geld "
+                        "voor claude credits dus ik kan niet reageren")
+
+
 def _call_claude(system: str, messages: list, tools: list,
                  model: str, max_tokens: int, allow_write: bool = False) -> str:
     client = anthropic.Anthropic(api_key=API_KEY)
     while True:
-        response = client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            system=system,
-            tools=tools,
-            messages=messages,
-        )
+        try:
+            response = client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                system=system,
+                tools=tools,
+                messages=messages,
+            )
+        except anthropic.APIStatusError as e:
+            if "credit balance is too low" in str(e).lower():
+                log.error("Claude credits op — fallback-bericht teruggegeven.")
+                return GEEN_CREDITS_BERICHT
+            raise
 
         if response.stop_reason == "end_turn":
             for block in response.content:
