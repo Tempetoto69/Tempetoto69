@@ -440,17 +440,19 @@ const parse=s=>{if(!s||typeof s!=='string'||!s.includes('-'))return null;
 const toto=(h,a)=>h>a?1:h<a?-1:0;
 const out={};
 for(const m of d.GROUP_MATCHES){
-  const r=parse(d.UITSLAGEN.group[m.id]); if(!r) continue;
   const rd='speelronde '+ronde(m.id);
-  out[rd]=out[rd]||{};
+  out[rd]=out[rd]||{compleet:true,punten:{}};
+  const r=parse(d.UITSLAGEN.group[m.id]);
+  if(!r){out[rd].compleet=false;continue;}
   for(const n of d.DEELNEMERS){
     const p=parse(d.VOORSPELLINGEN[n].group[m.id]); if(!p) continue;
     let pts=0;
     if(toto(p[0],p[1])===toto(r[0],r[1])) pts+=d.SCORING.group.toto;
     if(p[0]===r[0]&&p[1]===r[1]) pts+=d.SCORING.group.exact;
-    out[rd][n]=(out[rd][n]||0)+pts;
+    out[rd].punten[n]=(out[rd].punten[n]||0)+pts;
   }
 }
+for(const k in out) if(!Object.keys(out[k].punten).length) delete out[k];
 console.log(JSON.stringify(out));
 """
 
@@ -514,7 +516,8 @@ Nog geen punten gescoord door wie dan ook? Dan volstaat één droge zin.
 Zijn er al meerdere groepsspeelrondes (deels) gespeeld, splits de groepspunten dan kort
 uit per speelronde — de exacte cijfers staan hieronder bij SPEELRONDE-PUNTEN, reken
 ze niet zelf uit. Bijvoorbeeld: "Pieter pakte 12 punten in ronde 1, maar ronde 2 is
-met 3 punten een koersval."
+met 3 punten een koersval." Een speelronde met "compleet": true heeft een winnaar
+(hoogste punten): kroon die met 🏆 zolang het nieuws is.
 
 ⚽ Uitslagen
 Alleen als er sinds gisteren nieuwe uitslagen zijn: per wedstrijd de uitslag en wie er
@@ -918,6 +921,48 @@ console.log(JSON.stringify(out));
 """
 
 
+async def meld_ronde_winnaar():
+    """Meldt eenmalig de winnaar van een groepsspeelronde zodra die compleet is."""
+    if not BOT_TOKEN or not API_KEY:
+        return
+    try:
+        ronden = json.loads(_ronde_punten())
+    except Exception as e:
+        log.error(f"meld_ronde_winnaar: {e}")
+        return
+    gemeld = _posted_get("rondewinnaars") or []
+    for naam_ronde, info in ronden.items():
+        if not info.get("compleet") or naam_ronde in gemeld or not info.get("punten"):
+            continue
+        top = max(info["punten"].values())
+        winnaars = [n for n, p in info["punten"].items() if p == top]
+        opdracht = (f"Nieuws: {naam_ronde} van de groepsfase zit erop. "
+                    f"Winnaar van deze speelronde: {' en '.join(winnaars)} met {top} punten 🏆. "
+                    f"Volledige punten deze ronde: {json.dumps(info['punten'], ensure_ascii=False)}. "
+                    f"Kroon de winnaar als AI Kees in één droog bericht voor de groep (max 3 zinnen), "
+                    f"met die 🏆 erin. Ben jij het zelf, geniet er dan van; is het Smit, "
+                    f"dan weet je hoe zuinig je het brengt.")
+        reply = _call_claude(
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": opdracht}],
+            tools=CHAT_TOOLS,
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+        )
+        if reply:
+            await Bot(token=BOT_TOKEN).send_message(chat_id=CHAT_ID, text=reply)
+            geschiedenis.append(f"AI Kees: {reply}")
+            _save_history()
+            gemeld.append(naam_ronde)
+            try:
+                data = json.loads(POSTED_FILE.read_text())
+            except Exception:
+                data = {}
+            data["rondewinnaars"] = gemeld
+            POSTED_FILE.write_text(json.dumps(data, ensure_ascii=False))
+            log.info(f"Rondewinnaar gemeld: {reply}")
+
+
 async def meld_dode_kampioenen():
     """Meldt eenmalig in de groep wanneer iemands kampioenskeuze definitief is
     uitgeschakeld. Deduplicatie per land via geposte_updates.json."""
@@ -1059,6 +1104,7 @@ async def run_check_uitslagen():
                 _posted_set("standfeit")
             log.info(f"{log_label}: {reply}")
 
+    await meld_ronde_winnaar()
     await meld_dode_kampioenen()
 
 
@@ -1085,6 +1131,7 @@ async def run_daily_update():
     mark_posted_today()
     log.info(f"Dagelijkse update gepost: {bericht}")
     bewaar_stand_snapshot()
+    await meld_ronde_winnaar()
     await meld_dode_kampioenen()
 
 

@@ -574,28 +574,50 @@ function advanceRows(v,u,gl,gr){
 }
 
 // ---------- STAND-SHEET ----------
+// Punten per groepsspeelronde (1-3): per groep zijn wedstrijd 1-2 ronde 1, 3-4 ronde 2, 5-6 ronde 3
+function rondePunten(){
+  const pts={1:{},2:{},3:{}}, compleet={1:true,2:true,3:true}, gespeeld={1:false,2:false,3:false};
+  for(const m of GROUP_MATCHES){
+    const rd=Math.ceil(parseInt(m.id.slice(1),10)/2);
+    if(!parseScore(UITSLAGEN.group[m.id])){compleet[rd]=false;continue;}
+    gespeeld[rd]=true;
+    for(const n of DEELNEMERS) pts[rd][n]=(pts[rd][n]||0)+scoreGroup(VOORSPELLINGEN[n].group[m.id],UITSLAGEN.group[m.id]);
+  }
+  return {pts,compleet,gespeeld};
+}
+
 function standRows(){
   const rows=[];
   rows.push([C("Tussenstand Tempetoto 2026","title-cell",16)]);
   rows.push([]);
-  // koprij — spanning op brede kolommen: #(1) naam(5) gr.fase(4) KO(3) totaal(3)
-  rows.push([C("#","grouphdr",2),C("Naam","grouphdr",5),C("Groepsfase","grouphdr",4),C("KO-rondes","grouphdr",3),C("Totaal","grouphdr",3),C("Max","grouphdr",3)]);
+  const ronden=rondePunten();
+  const maxR={}; [1,2,3].forEach(r=>maxR[r]=Math.max(0,...Object.values(ronden.pts[r])));
+  // koprij — R1-R3: groepspunten per speelronde, 🏆 voor de winnaar van een afgeronde ronde
+  rows.push([C("#","grouphdr"),C("Naam","grouphdr",4),C("R1","grouphdr",2),C("R2","grouphdr",2),C("R3","grouphdr",2),
+             C("Gr.fase","grouphdr",3),C("KO","grouphdr",2),C("Totaal","grouphdr",2),C("Max","grouphdr",2)]);
   const data=DEELNEMERS.map(n=>{const sc=computeScore(n);return {naam:n,...sc,max:maxScore(n,sc)};}).sort((a,b)=>b.totaal-a.totaal);
   let lastPts=null, currentRank=0;
   data.forEach((d,i)=>{
     if(d.totaal!==lastPts){lastPts=d.totaal;currentRank=i+1;}
     const rank = String(currentRank);
     const medal=(rank==="1")?"🥇 ":(rank==="2")?"🥈 ":(rank==="3")?"🥉 ":"";
+    const rCel=r=>{
+      if(!ronden.gespeeld[r]) return C("—","delta-zero center",2);
+      const p=ronden.pts[r][d.naam]||0;
+      const beker=ronden.compleet[r]&&p===maxR[r]&&p>0?"🏆":"";
+      return C(beker+p,"center",2);
+    };
     rows.push([
-      C(rank,"standrank",2),
-      C(medal+d.naam,"",5),
-      C(String(d.voorrondes),"center",4),
-      C(String(d.finalerondes),"center",3),
-      C(String(d.totaal),"pt",3),
-      C(String(d.max),"center",3),
+      C(rank,"standrank"),
+      C(medal+d.naam,"",4),
+      rCel(1),rCel(2),rCel(3),
+      C(String(d.voorrondes),"center",3),
+      C(String(d.finalerondes),"center",2),
+      C(String(d.totaal),"pt",2),
+      C(String(d.max),"center",2),
     ]);
   });
-  rows.push([C("Max = hoogste eindscore die nog haalbaar is als alles wat open staat goed valt.","rules",16)]);
+  rows.push([C("R1-R3 = groepspunten per speelronde; 🏆 = winnaar van die ronde. Max = hoogste eindscore die nog haalbaar is.","rules",16)]);
   rows.push([]);
   // statistiek
   const f=UITSLAGEN.facts;
