@@ -1269,6 +1269,9 @@ VOORSPELLINGEN["Huttenhuis"].prematch.topscorer = "Mbappé";
 // Mark wijzigde vóór de aftrap (11 juni 2026) zijn topscorer-goals van 4 naar 5.
 VOORSPELLINGEN["Mark"].prematch.topscorerGoals = "5";
 
+// EJ vulde 'YAMAL' in kapitalen in — scoring en stats vergelijken exact.
+VOORSPELLINGEN["EJ"].prematch.topscorer = "Yamal";
+
 // ============================================================
 //  UITSLAGEN (door organisator / later de agent)
 // ============================================================
