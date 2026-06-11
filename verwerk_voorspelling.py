@@ -67,7 +67,8 @@ def norm_score(val, context):
 
 TEAM_ALIAS = {"vs": "Verenigde Staten", "usa": "Verenigde Staten",
               "amerika": "Verenigde Staten", "holland": "Nederland",
-              "nederand": "Nederland", "bosnië": "Bosnië-Herzegovina"}
+              "nederand": "Nederland", "bosnië": "Bosnië-Herzegovina",
+              "brazillie": "Brazilië", "algarije": "Algerije"}
 
 
 def _ruw(s):

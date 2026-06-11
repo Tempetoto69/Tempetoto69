@@ -198,6 +198,156 @@ function leegVoorspelling(){
 const VOORSPELLINGEN = {};
 DEELNEMERS.forEach(n=>{ VOORSPELLINGEN[n]=leegVoorspelling(); });
 
+// >>> VOORSPELLING Slotboom (gegenereerd door verwerk_voorspelling.py)
+Object.assign(VOORSPELLINGEN["Slotboom"], {
+  "prematch": {
+    "champion": "Engeland",
+    "finalist_predicted": "",
+    "surprise": "Verenigde Staten",
+    "deception": "Marokko",
+    "topscorer": "Kane",
+    "topscorerGoals": 8,
+    "totalGoals": 276,
+    "yellow": 362,
+    "red": 11
+  },
+  "group": {
+    "A1": "2-0",
+    "B1": "1-0",
+    "A2": "1-1",
+    "B2": "0-3",
+    "A3": "1-0",
+    "B3": "2-0",
+    "A4": "1-0",
+    "B4": "2-0",
+    "A5": "0-1",
+    "B5": "0-1",
+    "A6": "0-1",
+    "B6": "2-0",
+    "C1": "2-1",
+    "D1": "1-0",
+    "C2": "0-2",
+    "D2": "0-1",
+    "C3": "0-1",
+    "D3": "2-0",
+    "C4": "4-0",
+    "D4": "1-0",
+    "C5": "0-2",
+    "D5": "1-2",
+    "C6": "2-0",
+    "D6": "1-0",
+    "E1": "4-0",
+    "F1": "2-1",
+    "E2": "1-1",
+    "F2": "1-0",
+    "E3": "2-0",
+    "F3": "2-0",
+    "E4": "2-0",
+    "F4": "0-1",
+    "E5": "0-2",
+    "F5": "1-0",
+    "E6": "0-1",
+    "F6": "0-2",
+    "G1": "2-1",
+    "H1": "4-0",
+    "G2": "1-0",
+    "H2": "0-2",
+    "G3": "2-0",
+    "H3": "3-0",
+    "G4": "0-1",
+    "H4": "2-0",
+    "G5": "1-0",
+    "H5": "1-1",
+    "G6": "0-2",
+    "H6": "0-1",
+    "I1": "1-0",
+    "J1": "2-0",
+    "I2": "0-3",
+    "J2": "2-0",
+    "I3": "3-0",
+    "J3": "2-0",
+    "I4": "1-0",
+    "J4": "0-2",
+    "I5": "0-1",
+    "J5": "0-1",
+    "I6": "2-0",
+    "J6": "0-3",
+    "K1": "2-0",
+    "L1": "1-0",
+    "K2": "0-2",
+    "L2": "1-0",
+    "K3": "2-0",
+    "L3": "2-0",
+    "K4": "2-0",
+    "L4": "0-2",
+    "K5": "0-1",
+    "L5": "0-2",
+    "K6": "1-0",
+    "L6": "1-0"
+  },
+  "top2": {
+    "A": [
+      "Mexico",
+      "Tsjechië"
+    ],
+    "B": [
+      "Canada",
+      "Zwitserland"
+    ],
+    "C": [
+      "Brazilië",
+      "Marokko"
+    ],
+    "D": [
+      "Verenigde Staten",
+      "Turkije"
+    ],
+    "E": [
+      "Duitsland",
+      "Ecuador"
+    ],
+    "F": [
+      "Nederland",
+      "Japan"
+    ],
+    "G": [
+      "België",
+      "Egypte"
+    ],
+    "H": [
+      "Spanje",
+      "Uruguay"
+    ],
+    "I": [
+      "Frankrijk",
+      "Noorwegen"
+    ],
+    "J": [
+      "Argentinië",
+      "Oostenrijk"
+    ],
+    "K": [
+      "Portugal",
+      "Colombia"
+    ],
+    "L": [
+      "Engeland",
+      "Kroatië"
+    ]
+  },
+  "best3": [
+    "Zweden",
+    "Zuid-Korea",
+    "Paraguay",
+    "Ivoorkust",
+    "Bosnië-Herzegovina",
+    "Schotland",
+    "Senegal",
+    "Algerije"
+  ]
+});
+// <<< VOORSPELLING Slotboom
+
 // >>> VOORSPELLING Huttenhuis (gegenereerd door verwerk_voorspelling.py)
 Object.assign(VOORSPELLINGEN["Huttenhuis"], {
   "prematch": {
