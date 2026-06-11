@@ -604,7 +604,8 @@ function koPunten(){
   return out;
 }
 
-const STAND_OPTS={ncols:12,widths:[26,150,62,62,62,62,62,62,62,62,70,80]};
+// let op: widths[0] is het rijnummer-gootje, daarna pas de 12 datakolommen (13 totaal)
+const STAND_OPTS={ncols:12,widths:[22,26,150,62,62,62,62,62,62,62,62,70,80]};
 function standRows(){
   const rows=[];
   rows.push([C("Tussenstand Tempetoto 2026","title-cell",12)]);
