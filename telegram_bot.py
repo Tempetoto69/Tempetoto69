@@ -432,6 +432,39 @@ def ai_kees_reply(naam: str, tekst: str, chat_history: list, is_floris: bool) ->
     )
 
 
+_RONDE_PUNTEN_JS = """
+const d=require('./data.js');
+const ronde=id=>Math.ceil(parseInt(id.slice(1))/2);
+const parse=s=>{if(!s||typeof s!=='string'||!s.includes('-'))return null;
+  const[a,b]=s.split('-').map(Number);return isNaN(a)||isNaN(b)?null:[a,b];};
+const toto=(h,a)=>h>a?1:h<a?-1:0;
+const out={};
+for(const m of d.GROUP_MATCHES){
+  const r=parse(d.UITSLAGEN.group[m.id]); if(!r) continue;
+  const rd='speelronde '+ronde(m.id);
+  out[rd]=out[rd]||{};
+  for(const n of d.DEELNEMERS){
+    const p=parse(d.VOORSPELLINGEN[n].group[m.id]); if(!p) continue;
+    let pts=0;
+    if(toto(p[0],p[1])===toto(r[0],r[1])) pts+=d.SCORING.group.toto;
+    if(p[0]===r[0]&&p[1]===r[1]) pts+=d.SCORING.group.exact;
+    out[rd][n]=(out[rd][n]||0)+pts;
+  }
+}
+console.log(JSON.stringify(out));
+"""
+
+
+def _ronde_punten() -> str:
+    """Tempetoto-punten uit groepswedstrijden, uitgesplitst per speelronde (1-3)."""
+    try:
+        return subprocess.run(["node", "-e", _RONDE_PUNTEN_JS], cwd=REPO_DIR,
+                              capture_output=True, text=True, check=True).stdout.strip()
+    except Exception as e:
+        log.error(f"_ronde_punten fout: {e}")
+        return "{}"
+
+
 def ai_kees_daily_update() -> str:
     nu = datetime.now(_TZ)
     dagen = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"]
@@ -478,13 +511,19 @@ Speeldag {speeldag}
 📊 De stand
 Top 3 met punten en je eigen positie, plus de opvallendste verschuiving sinds gisteren.
 Nog geen punten gescoord door wie dan ook? Dan volstaat één droge zin.
+Zijn er al meerdere groepsspeelrondes (deels) gespeeld, splits de groepspunten dan kort
+uit per speelronde — de exacte cijfers staan hieronder bij SPEELRONDE-PUNTEN, reken
+ze niet zelf uit. Bijvoorbeeld: "Pieter pakte 12 punten in ronde 1, maar ronde 2 is
+met 3 punten een koersval."
 
 ⚽ Uitslagen
 Alleen als er sinds gisteren nieuwe uitslagen zijn: per wedstrijd de uitslag en wie er
 punten pakte. Geen nieuwe uitslagen → dit kopje helemaal weglaten.
 
 📅 Vandaag
-De wedstrijden van vandaag uit het speelschema: tijd (NL), affiche, stad. Droog
+De wedstrijden van vandaag uit het speelschema: tijd (NL), affiche, stad. Vermeld erbij
+om welke groepsspeelronde het gaat (per groep: wedstrijd 1-2 = speelronde 1, 3-4 =
+speelronde 2, 5-6 = speelronde 3 — het cijfer in de match-id zegt het). Droog
 commentaar bij maximaal één wedstrijd.
 
 👀 Opvallend
@@ -505,6 +544,9 @@ Regels:
 - Later in het toernooi: 'max' per deelnemer in get_standings zegt wie er nog kan winnen.
   Wordt dat krap voor iemand, dan mag je dat fijntjes benoemen.
 - Droog, contrair, bondig. Het hele bericht maximaal ~14 regels.
+
+SPEELRONDE-PUNTEN (groepswedstrijden, alleen al gespeelde wedstrijden tellen mee):
+{_ronde_punten()}
 
 Geef alleen het Telegram-bericht terug als eindantwoord."""
 
