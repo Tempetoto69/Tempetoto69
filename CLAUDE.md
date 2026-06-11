@@ -21,7 +21,7 @@ EJ, Floris, Daniel, Giezen, Huttenhuis, Mark, Pieter, Slotboom, Smit, **AI Kees*
 | `tempetoto2026_invulformulier.xlsx` | Excel-template voor deelnemers |
 | `banner.jpg` | Header-afbeelding (ook in het Excel-formulier) |
 | `AI_KEES_PROFIEL.md` | Volledig karakterprofiel + system prompt basis voor AI Kees |
-| `telegram_bot.py` | AI Kees bot: chat, dagelijkse update (`--daily-update`), pre-match preview (`--pre-match`) |
+| `telegram_bot.py` | AI Kees bot: chat + versiebeheer (`VERSIE`), dagelijkse update (`--daily-update`), pre-match (`--pre-match`), uitslagen + na-wedstrijd recap (`--check-uitslagen`) |
 | `bereken_stand.js` | Berekent de actuele stand (JSON op stdout) |
 | `valideer_data.js` | Valideert data.js (integriteit + scoretests) vóór elke write/push |
 | `prewedstrijd.js` | Voorspellingen per wedstrijd voor de pre-match preview |
@@ -97,18 +97,21 @@ Cron-output gaat naar `cron.log`; de bot logt zelf naar `bot.log` (geroteerd, ma
 **Uitslagen-checker (elk kwartier, deterministisch — geen LLM):** `--check-uitslagen`
 pollt de football API alleen als er volgens `wedstrijden.json` een groepswedstrijd
 1u45–6u geleden begon waarvan de uitslag nog mist. Nieuwe uitslag → data.js bijwerken
-(regex op UITSLAGEN.group, validatie + rollback), pushen, stand-snapshot. Pakt iemand
-de leiding, dan meldt Kees dat in de groep (Haiku). KO-uitslagen, advancers, topscorers
-en kaarten blijven bij de dagelijkse 08:00-update (Sonnet).
+(regex op UITSLAGEN.group, validatie + rollback), pushen, stand-snapshot. Daarna post Kees
+ná elke groepswedstrijd een recap (Haiku): wie voorspelde het goed (exact goede toto =
+eervolle vermelding) en wat het met de stand doet, met standbewustzijn (koploper loopt uit /
+voorsprong slinkt). Helpers `_match_recap` (punten per wedstrijd) + `_recap_opdracht`.
+KO-uitslagen, advancers, topscorers en kaarten blijven bij de dagelijkse 08:00-update (Sonnet).
 
 ### ✅ 4. Telegram-bot + AI Kees (in productie)
 Draait als systemd service `tempetoto-bot` (chat-modus, polling).
 Herstart na code-wijzigingen: `sudo systemctl restart tempetoto-bot`.
 
-- **Chat:** reageert op @mention, "kees", Smit/uitslag-triggers en actieve gesprekken (Haiku, alleen read-tools)
+- **Chat:** reageert op @mention, "kees", Smit/uitslag-triggers en actieve gesprekken (Haiku, alleen read-tools). Bij doorpraten zónder mention/"kees" beoordeelt hij zelf of het aan hem gericht is en zwijgt anders (`[stil]` → niets posten). Per-gesprek venster (`laatste_kees_reactie`), niet per gebruiker. Bij een mention een korte luister-pauze + context van de berichten eromheen. Mag ook over niet-voetbal kletsen; verzint geen feiten (checkt poule-data via tools).
 - **Dagelijkse update:** zie component 3 (Sonnet, met write-tools)
 - **Pre-match preview:** cron elke 5 min (`--pre-match`) post ~15 min vóór elke groepswedstrijd de voorspellingen
-- Karakter: master Finance, piratenmasker, contrair, droge humor, finance-jargon spaarzaam — zie `AI_KEES_PROFIEL.md`
+- **Versiebeheer:** `VERSIE`-constante; bij een versie-bump kondigt Kees bij opstart één keer een korte "KeesOS X.YZ"-changelog aan (`VERSIE_NOTITIES`, dedup via `versie`-key in `geposte_updates.json`). Markeert pas ná een geslaagde post.
+- Karakter: master Finance, piratenmasker, contrair, droge humor + sass, finance-jargon spaarzaam — zie `AI_KEES_PROFIEL.md`
 
 **Telegram-groep:** ✅ aangemaakt — chat ID `-5030253572`, bot `@ai_kees_bot` actief
 **Configuratie:** `/home/floris/Tempetoto/.env` (niet in git)
@@ -116,9 +119,9 @@ Herstart na code-wijzigingen: `sudo systemctl restart tempetoto-bot`.
 ---
 
 ## Openstaande acties voor Floris
-1. **Voorspellingen verzamelen** — invulformulier versturen naar deelnemers, ingevulde bestanden terugkrijgen
-2. **Voorspellingen verwerken** — ingevulde Excel-bestanden verwerken naar `data.js`
-3. **AI Kees voorspellingen** — `maak_kees_voorspellingen.py` draaien vóór de aftrap (11 juni 2026)
+- ✅ Alle 10 voorspellingen verwerkt (laatste: Daniel, 11 juni) en AI Kees' voorspellingen staan.
+- WK loopt sinds 11 juni 2026: de bot draait de uitslagen/recap/stand-flow nu autonoom.
+- Nieuwe formulieren verwerken kan altijd nog met `python3 verwerk_voorspelling.py <naam>.xlsx`.
 
 ---
 
