@@ -586,38 +586,61 @@ function rondePunten(){
   return {pts,compleet,gespeeld};
 }
 
+// Punten per KO-ronde; compleet zodra de bracket echt gevuld is én alle uitslagen binnen zijn
+function koPunten(){
+  const out={};
+  for(const r of KO_ROUNDS){
+    const reals=UITSLAGEN.ko.results[r.key]||[], br=UITSLAGEN.ko.brackets[r.key]||[];
+    const pts={}; let gespeeld=false;
+    const compleet=rondeGevuld(r.key)&&br.length>0&&br.every((_,i)=>parseScore(reals[i]));
+    br.forEach((_,i)=>{
+      if(!parseScore(reals[i])) return;
+      gespeeld=true;
+      for(const n of DEELNEMERS)
+        pts[n]=(pts[n]||0)+scoreKo((VOORSPELLINGEN[n].ko[r.key]||[])[i],reals[i],r);
+    });
+    out[r.key]={pts,compleet,gespeeld};
+  }
+  return out;
+}
+
+const STAND_OPTS={ncols:12,widths:[34,100,44,44,44,44,44,44,44,44,56,50]};
 function standRows(){
   const rows=[];
-  rows.push([C("Tussenstand Tempetoto 2026","title-cell",16)]);
+  rows.push([C("Tussenstand Tempetoto 2026","title-cell",12)]);
   rows.push([]);
-  const ronden=rondePunten();
-  const maxR={}; [1,2,3].forEach(r=>maxR[r]=Math.max(0,...Object.values(ronden.pts[r])));
-  // koprij — R1-R3: groepspunten per speelronde, 🏆 voor de winnaar van een afgeronde ronde
-  rows.push([C("#","grouphdr"),C("Naam","grouphdr",4),C("R1","grouphdr",2),C("R2","grouphdr",2),C("R3","grouphdr",2),
-             C("Gr.fase","grouphdr",3),C("KO","grouphdr",2),C("Totaal","grouphdr",2),C("Max","grouphdr",2)]);
+  // segmenten: 3 groepsspeelrondes + 5 KO-rondes, elk onafhankelijk te winnen (🏆)
+  const ronden=rondePunten(), ko=koPunten();
+  const seg=[
+    ...[1,2,3].map(r=>({kop:"R"+r, pts:ronden.pts[r], compleet:ronden.compleet[r], gespeeld:ronden.gespeeld[r]})),
+    ...[["R32","16e"],["R16","8e"],["KF","KF"],["HF","HF"],["F","F"]]
+      .map(([k,kop])=>({kop, ...ko[k], pts:ko[k].pts})),
+  ];
+  seg.forEach(s=>s.max=Math.max(0,...Object.values(s.pts||{})));
+  rows.push([C("#","grouphdr"),C("Naam","grouphdr"),
+             ...seg.map(s=>C(s.kop,"grouphdr")),
+             C("Totaal","grouphdr"),C("Max","grouphdr")]);
   const data=DEELNEMERS.map(n=>{const sc=computeScore(n);return {naam:n,...sc,max:maxScore(n,sc)};}).sort((a,b)=>b.totaal-a.totaal);
   let lastPts=null, currentRank=0;
   data.forEach((d,i)=>{
     if(d.totaal!==lastPts){lastPts=d.totaal;currentRank=i+1;}
     const rank = String(currentRank);
     const medal=(rank==="1")?"🥇 ":(rank==="2")?"🥈 ":(rank==="3")?"🥉 ":"";
-    const rCel=r=>{
-      if(!ronden.gespeeld[r]) return C("—","delta-zero center",2);
-      const p=ronden.pts[r][d.naam]||0;
-      const beker=ronden.compleet[r]&&p===maxR[r]&&p>0?"🏆":"";
-      return C(beker+p,"center",2);
+    const segCel=s=>{
+      if(!s.gespeeld) return C("—","delta-zero center");
+      const p=s.pts[d.naam]||0;
+      return C((s.compleet&&p===s.max&&p>0?"🏆":"")+p,"center");
     };
     rows.push([
       C(rank,"standrank"),
-      C(medal+d.naam,"",4),
-      rCel(1),rCel(2),rCel(3),
-      C(String(d.voorrondes),"center",3),
-      C(String(d.finalerondes),"center",2),
-      C(String(d.totaal),"pt",2),
-      C(String(d.max),"center",2),
+      C(medal+d.naam,""),
+      ...seg.map(segCel),
+      C(String(d.totaal),"pt"),
+      C(String(d.max),"center"),
     ]);
   });
-  rows.push([C("R1-R3 = groepspunten per speelronde; 🏆 = winnaar van die ronde. Max = hoogste eindscore die nog haalbaar is.","rules",16)]);
+  rows.push([C("R1-R3 = groepsspeelrondes, daarna de KO-rondes; per segment de wedstrijdpunten, 🏆 = segmentwinnaar. "+
+              "Punten voor doorgaan en de vooraf-voorspellingen tellen alleen mee in Totaal. Max = hoogste eindscore die nog haalbaar is.","rules",12)]);
   rows.push([]);
   // statistiek
   const f=UITSLAGEN.facts;
@@ -928,7 +951,7 @@ function draw(){
     CURRENT==="All Time" ? "All Time Tempetoto Ranking" :
     "Voorspellingen — "+CURRENT;
   if(CURRENT==="Stand"){
-    renderGrid(standRows());
+    renderGrid(standRows(),STAND_OPTS);
     document.getElementById("sheet").insertAdjacentHTML("beforeend",chartHTML());
   }
   else if(CURRENT==="Stats") renderGrid(statsRows());

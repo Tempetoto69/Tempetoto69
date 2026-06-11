@@ -452,6 +452,24 @@ for(const m of d.GROUP_MATCHES){
     out[rd].punten[n]=(out[rd].punten[n]||0)+pts;
   }
 }
+const namen={R32:'16e finales',R16:'8e finales',KF:'kwartfinales',HF:'halve finales',F:'finale'};
+const alle=Object.values(d.GROUPS).flat();
+for(const r of d.KO_ROUNDS){
+  const br=d.UITSLAGEN.ko.brackets[r.key]||[], res=d.UITSLAGEN.ko.results[r.key]||[];
+  const gevuld=br.length>0&&br.every(x=>alle.includes(x.home)&&alle.includes(x.away));
+  const seg={compleet:gevuld&&br.every((_,i)=>parse(res[i])),punten:{}};
+  br.forEach((_,i)=>{
+    const u=parse(res[i]); if(!u) return;
+    for(const n of d.DEELNEMERS){
+      const p=parse(((d.VOORSPELLINGEN[n].ko||{})[r.key]||[])[i]); if(!p) continue;
+      let pts=0;
+      if(toto(p[0],p[1])===toto(u[0],u[1])) pts+=r.toto;
+      if(p[0]===u[0]&&p[1]===u[1]) pts+=r.exact;
+      seg.punten[n]=(seg.punten[n]||0)+pts;
+    }
+  });
+  out[namen[r.key]]=seg;
+}
 for(const k in out) if(!Object.keys(out[k].punten).length) delete out[k];
 console.log(JSON.stringify(out));
 """
@@ -936,8 +954,9 @@ async def meld_ronde_winnaar():
             continue
         top = max(info["punten"].values())
         winnaars = [n for n, p in info["punten"].items() if p == top]
-        opdracht = (f"Nieuws: {naam_ronde} van de groepsfase zit erop. "
-                    f"Winnaar van deze speelronde: {' en '.join(winnaars)} met {top} punten 🏆. "
+        opdracht = (f"Nieuws: {naam_ronde} zit erop — elk segment van de Tempetoto "
+                    f"kent een eigen winnaar. "
+                    f"Winnaar van dit segment: {' en '.join(winnaars)} met {top} punten 🏆. "
                     f"Volledige punten deze ronde: {json.dumps(info['punten'], ensure_ascii=False)}. "
                     f"Kroon de winnaar als AI Kees in één droog bericht voor de groep (max 3 zinnen), "
                     f"met die 🏆 erin. Ben jij het zelf, geniet er dan van; is het Smit, "
