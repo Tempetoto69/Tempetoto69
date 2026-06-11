@@ -1579,7 +1579,7 @@ VOORSPELLINGEN["Floris"].prematch.topscorer = "Gakpo";
 //  UITSLAGEN (door organisator / later de agent)
 // ============================================================
 const UITSLAGEN = {
-  group:{},                       // matchId -> "thuis-uit"
+  group:{"A1":"2-0"},                       // matchId -> "thuis-uit"
   advancers:{ top2:{}, best3:[] },// werkelijk doorgegane landen
   ko:{
     brackets:{
