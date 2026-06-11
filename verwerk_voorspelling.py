@@ -57,7 +57,7 @@ def norm_score(val, context):
         s = f"{val.day}-{val.month}"
         warn(f"{context}: Excel-datum {val.date()} geïnterpreteerd als '{s}'")
         return s
-    s = str(val).strip().replace("–", "-").replace(" ", "")
+    s = str(val).strip().lstrip("`'").replace("–", "-").replace(" ", "")
     m = re.fullmatch(r"(\d{1,2})-(\d{1,2})", s)
     if not m:
         warn(f"{context}: ongeldige score '{val}' overgeslagen")
@@ -71,7 +71,9 @@ TEAM_ALIAS = {"vs": "Verenigde Staten", "usa": "Verenigde Staten",
               "brazillie": "Brazilië", "algarije": "Algerije",
               "kor": "Zuid-Korea",  # 'KOR' is geen prefix van Zuid-Korea
               "bosnie": "Bosnië-Herzegovina", "marrokko": "Marokko",
-              "argentine": "Argentinië", "england": "Engeland"}
+              "argentine": "Argentinië", "england": "Engeland",
+              "tjech": "Tsjechië", "zwiss": "Zwitserland",
+              "schot": "Schotland", "duits": "Duitsland", "nor": "Noorwegen"}
 
 
 def _ruw(s):

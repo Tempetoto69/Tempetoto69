@@ -198,6 +198,156 @@ function leegVoorspelling(){
 const VOORSPELLINGEN = {};
 DEELNEMERS.forEach(n=>{ VOORSPELLINGEN[n]=leegVoorspelling(); });
 
+// >>> VOORSPELLING Daniel (gegenereerd door verwerk_voorspelling.py)
+Object.assign(VOORSPELLINGEN["Daniel"], {
+  "prematch": {
+    "champion": "Brazilië",
+    "finalist_predicted": "",
+    "surprise": "Schotland",
+    "deception": "Marokko",
+    "topscorer": "Messi",
+    "topscorerGoals": 8,
+    "totalGoals": 134,
+    "yellow": 126,
+    "red": 14
+  },
+  "group": {
+    "A1": "2-1",
+    "B1": "2-0",
+    "A2": "0-2",
+    "B2": "1-3",
+    "A3": "2-0",
+    "B3": "2-0",
+    "A4": "2-1",
+    "B4": "2-1",
+    "A5": "1-1",
+    "B5": "1-0",
+    "A6": "0-2",
+    "B6": "1-0",
+    "C1": "2-0",
+    "D1": "1-2",
+    "C2": "1-3",
+    "D2": "1-1",
+    "C3": "1-0",
+    "D3": "1-2",
+    "C4": "4-0",
+    "D4": "1-1",
+    "C5": "0-1",
+    "D5": "1-0",
+    "C6": "2-0",
+    "D6": "2-1",
+    "E1": "2-0",
+    "F1": "1-0",
+    "E2": "1-2",
+    "F2": "2-1",
+    "E3": "2-0",
+    "F3": "1-1",
+    "E4": "2-0",
+    "F4": "1-2",
+    "E5": "2-1",
+    "F5": "1-2",
+    "E6": "1-2",
+    "F6": "3-0",
+    "G1": "2-0",
+    "H1": "3-0",
+    "G2": "1-1",
+    "H2": "1-2",
+    "G3": "2-0",
+    "H3": "2-0",
+    "G4": "1-1",
+    "H4": "2-0",
+    "G5": "1-2",
+    "H5": "0-1",
+    "G6": "0-2",
+    "H6": "1-2",
+    "I1": "3-0",
+    "J1": "2-1",
+    "I2": "0-1",
+    "J2": "2-0",
+    "I3": "2-0",
+    "J3": "2-1",
+    "I4": "2-0",
+    "J4": "1-2",
+    "I5": "1-2",
+    "J5": "1-2",
+    "I6": "1-0",
+    "J6": "0-2",
+    "K1": "2-0",
+    "L1": "1-2",
+    "K2": "0-2",
+    "L2": "2-1",
+    "K3": "2-1",
+    "L3": "1-2",
+    "K4": "2-0",
+    "L4": "1-2",
+    "K5": "1-1",
+    "L5": "1-2",
+    "K6": "0-0",
+    "L6": "1-1"
+  },
+  "top2": {
+    "A": [
+      "Tsjechië",
+      "Mexico"
+    ],
+    "B": [
+      "Zwitserland",
+      "Canada"
+    ],
+    "C": [
+      "Brazilië",
+      "Schotland"
+    ],
+    "D": [
+      "Paraguay",
+      "Australië"
+    ],
+    "E": [
+      "Duitsland",
+      "Ecuador"
+    ],
+    "F": [
+      "Nederland",
+      "Zweden"
+    ],
+    "G": [
+      "België",
+      "Iran"
+    ],
+    "H": [
+      "Spanje",
+      "Uruguay"
+    ],
+    "I": [
+      "Frankrijk",
+      "Noorwegen"
+    ],
+    "J": [
+      "Argentinië",
+      "Oostenrijk"
+    ],
+    "K": [
+      "Portugal",
+      "Colombia"
+    ],
+    "L": [
+      "Kroatië",
+      "Ghana"
+    ]
+  },
+  "best3": [
+    "Verenigde Staten",
+    "Senegal",
+    "Marokko",
+    "Curaçao",
+    "Engeland",
+    "Zuid-Korea",
+    "Oezbekistan",
+    "Japan"
+  ]
+});
+// <<< VOORSPELLING Daniel
+
 // >>> VOORSPELLING Floris (gegenereerd door verwerk_voorspelling.py)
 Object.assign(VOORSPELLINGEN["Floris"], {
   "prematch": {
