@@ -32,6 +32,15 @@ from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
 load_dotenv(Path(__file__).parent / '.env')
 
+VERSIE           = "2.31"  # AI Kees bot — versiebeheer (baseline). Verhoog bij elke release.
+# Korte changelog per versie. Bij een nieuwe versie kondigt Kees dit beknopt aan in de groep
+# (1x per versie, bij opstart). Geen notitie = geen aankondiging.
+VERSIE_NOTITIES  = {
+    "2.31": "Twee dingen nieuw. 1) Je luistert beter naar de groep: praten mensen onderling "
+            "door zonder je te noemen, dan hou je je gedeisd (zeg 'Kees' of tag me als je me "
+            "wil). 2) Na elke wedstrijd geef je een recap: wie voorspelde het goed (exact goede "
+            "toto = eervolle vermelding) en wat het met de stand doet.",
+}
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
 CHAT_ID          = int(os.getenv('TELEGRAM_CHAT_ID', '0'))
@@ -69,7 +78,7 @@ NL_TO_EN = {
     "Kroatië":"Croatia","Ghana":"Ghana","Panama":"Panama",
 }
 
-GESPREK_TIMEOUT = 180  # seconden actief gesprek per gebruiker
+GESPREK_TIMEOUT = 180  # seconden dat het gesprek "open" staat na Kees' laatste reactie
 
 laatste_smit_sneer = ""  # datum (str) van de laatste smit-trigger — max 1 per dag
 
@@ -89,6 +98,8 @@ log = logging.getLogger(__name__)
 SYSTEM_PROMPT = """Je bent AI Kees, deelnemer aan de Tempetoto 2026 voetbalpoule.
 Je hebt een master Finance en draagt een piratenmasker.
 Je bent contrair, hebt droge intelligente humor, en bent zuur over hype en populaire meningen.
+Je mag brutaal en sassy zijn: een gevatte sneer, een plagerige steek terug of een droog "hoezo"
+hoort erbij. Geen doetje dat alles netjes beantwoordt, maar speels-bijtend, nooit echt grof.
 Je hebt een achtergrond in finance maar gooit daar niet constant mee. Gebruik financiële termen
 (puts, volatiliteit, macro, etc.) alleen als het écht ergens op slaat — niet als standaard shtick.
 Je spreekt bondig: maximaal 2-3 zinnen. Varieer je toon: soms cynisch, soms laconiek, soms scherp.
@@ -179,7 +190,9 @@ TOOL_GET_STANDINGS = {
     "description": (
         "Berekent de huidige puntentelling en stand voor alle deelnemers. Geeft JSON met rang, "
         "naam, punten per categorie en 'max' (maximaal haalbare eindscore). Bevat ook "
-        "'vorige_snapshot' (de stand van de vorige dag) zodat je punten-per-dag kunt vergelijken."
+        "'vorige_snapshot' (de stand van gisteren, voor punten-per-dag) en 'segmenten': de "
+        "tussenstand per speelronde (1-3) en KO-ronde (16e finales t/m finale), elk met "
+        "punten per deelnemer en of dat segment compleet is — elk segment kent een eigen winnaar."
     ),
     "input_schema": {"type": "object", "properties": {}, "required": []},
 }
@@ -310,6 +323,10 @@ def run_tool(name: str, tool_input: dict, allow_write: bool = False) -> str:
                           if h.get("datum", "") < str(date.today())]
                 if eerder:
                     out["vorige_snapshot"] = eerder[-1]
+            try:
+                out["segmenten"] = json.loads(_ronde_punten())
+            except Exception as e:
+                log.error(f"segmenten in get_standings mislukt: {e}")
             return json.dumps(out, ensure_ascii=False)
         except subprocess.CalledProcessError as e:
             return f"Fout bij berekening: {e.stderr}"
@@ -411,25 +428,47 @@ def _call_claude(system: str, messages: list, tools: list,
     return ""
 
 
-def ai_kees_reply(naam: str, tekst: str, chat_history: list, is_floris: bool) -> str:
+def ai_kees_reply(naam: str, tekst: str, chat_history: list, is_floris: bool,
+                  mag_zwijgen: bool = False) -> str:
     context = "\n".join(chat_history) if chat_history else "(nog geen eerdere berichten)"
 
-    if is_floris:
+    if mag_zwijgen:
+        # De groep praat door zonder Kees te noemen. Laat hem zélf beoordelen of dit
+        # nog aan hem gericht is. Zo niet, dan houdt hij zich gedeisd ([stil] = niets posten).
+        context_regel = (
+            f"Recente chat in de groep:\n{context}\n\n"
+            f"{naam} zegt zojuist: {tekst}\n\n"
+            f"De groep is onderling aan het kletsen — dit bericht is NIET per se aan jou gericht "
+            f"(niemand noemt je naam of spreekt je aan). Meng je alleen als het duidelijk aan jou "
+            f"gevraagd wordt, of als je echt iets raaks of grappigs toe te voegen hebt. Twijfel je, "
+            f"of praten ze onderling verder? Dan hou je je gedeisd. "
+            f"Als je niets zegt, antwoord dan UITSLUITEND met exact: [stil]"
+        )
+    elif is_floris:
         context_regel = (
             f"[ORGANISATOR] Floris geeft je een opdracht. Voer die uit. "
             f"Bevestig kort met 'Ja baas' als hij je iets opdraagt.\n\n"
             f"Recente chat:\n{context}\n\nFloris zegt: {tekst}"
         )
     else:
-        context_regel = f"Recente chat in de groep:\n{context}\n\n{naam} zegt nu tegen jou: {tekst}"
+        context_regel = (
+            f"Recente chat in de groep:\n{context}\n\n"
+            f"Je wordt aangesproken. {naam} zegt: {tekst}\n\n"
+            f"Lees ook even de paar berichten er vlak omheen (ervoor én erna) voor context — "
+            f"je hoeft er niet per se op in te gaan, maar reageer er slim en to-the-point op, "
+            f"niet alsof je het gesprek eromheen niet ziet."
+        )
 
-    return _call_claude(
+    antwoord = _call_claude(
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": context_regel}],
         tools=CHAT_TOOLS,
         model="claude-haiku-4-5-20251001",
         max_tokens=300,
     )
+    if mag_zwijgen and antwoord.strip().lower().strip("[].!*").startswith("stil"):
+        return ""
+    return antwoord
 
 
 _RONDE_PUNTEN_JS = """
@@ -483,6 +522,129 @@ def _ronde_punten() -> str:
     except Exception as e:
         log.error(f"_ronde_punten fout: {e}")
         return "{}"
+
+
+_WELKOM_JS = """
+const d=require('./data.js');
+const out={};
+for(const n of d.DEELNEMERS){
+  if(!Object.keys(d.VOORSPELLINGEN[n].group||{}).length) continue;
+  const p=d.VOORSPELLINGEN[n].prematch;
+  out[n]={kampioen:p.champion,topscorer:p.topscorer+' ('+p.topscorerGoals+' goals)',
+          verrassing:p.surprise,deceptie:p.deception,totaalGoals:p.totalGoals};
+}
+console.log(JSON.stringify(out));
+"""
+
+
+def ai_kees_welkom() -> str:
+    try:
+        overzicht = subprocess.run(["node", "-e", _WELKOM_JS], cwd=REPO_DIR,
+                                   capture_output=True, text=True, check=True).stdout.strip()
+    except Exception as e:
+        log.error(f"welkom-overzicht mislukt: {e}")
+        return ""
+    system = SYSTEM_PROMPT + f"""
+
+Speciale taak: het openingsbericht van Tempetoto 2026, vlak voor de aftrap van het WK.
+De deelnemers zijn net toegevoegd aan deze gloednieuwe Telegram-groep. Om 21:00 vanavond
+begint het WK met Mexico - Zuid-Afrika in het Estadio Azteca. Dit is jouw opening van de poule.
+
+OPMAAK — zoals je dagelijkse bulletin: verzorgde interpunctie en hoofdletters, droge
+Kees-toon, geen gedachtestreepjes. Richtlijn voor de inhoud:
+- Heet iedereen welkom bij Tempetoto 2026, kort en in karakter (jij bent deelnemer én
+  zelfbenoemd huisanalist van de poule).
+- Vat de voorspellingen samen. Gebruik UITSLUITEND deze data, verzin niets:
+{overzicht}
+  Benoem wat opvalt: de populairste kampioen, hoeveel mensen Mbappé als topscorer hebben
+  (en wie afwijken), en één of twee gedurfde of juist laffe keuzes. Droog commentaar mag.
+- Je hebt zelf uiteraard ook ingevuld en bent van plan te winnen.
+- Wijs op de site: daar staat de stand, ieders voorspellingen en de statistieken. Meld
+  dat je elke ochtend om 08:00 een stand-update post en vlak voor elke wedstrijd een preview.
+- Sluit af met de aftrap van vanavond 21:00 en precies deze regel als laatste:
+📈 tempetoto69.github.io/Tempetoto69
+- Maximaal ~15 regels.
+
+Geef alleen het Telegram-bericht terug als eindantwoord."""
+    return _call_claude(
+        system=system,
+        messages=[{"role": "user", "content": "Schrijf het openingsbericht voor de Tempetoto-groep."}],
+        tools=CHAT_TOOLS,
+        model="claude-sonnet-4-6",
+        max_tokens=1200,
+    )
+
+
+async def run_welkom():
+    if not BOT_TOKEN or not API_KEY:
+        log.error("BOT_TOKEN of ANTHROPIC_API_KEY ontbreekt in .env")
+        sys.exit(1)
+    if _posted_get("welkom"):
+        log.info("Welkomstbericht al gepost — sla over.")
+        return
+    bericht = ai_kees_welkom()
+    if not bericht:
+        log.error("Geen welkomstbericht gegenereerd.")
+        return
+    await Bot(token=BOT_TOKEN).send_message(chat_id=CHAT_ID, text=bericht)
+    geschiedenis.append(f"AI Kees: {bericht}")
+    _save_history()
+    _posted_set("welkom")
+    log.info(f"Welkomstbericht gepost: {bericht}")
+
+
+def ai_kees_versie_update() -> str:
+    """Laat Kees in zijn eigen stijl heel beknopt aankondigen wat er nieuw is."""
+    notitie = VERSIE_NOTITIES.get(VERSIE)
+    if not notitie:
+        return ""
+    prompt = (
+        f"Je bent zojuist geüpdatet naar versie {VERSIE}. Kondig dat heel beknopt aan in de "
+        f"groep in jouw eigen stijl. Begin in de ik-vorm, zoiets als 'Ik heb een update "
+        f"gekregen, ik...'. Eén of twee zinnen, noem kort wat er verandert. "
+        f"Wat er nieuw is: {notitie}"
+    )
+    return _call_claude(
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+        tools=[],
+        model="claude-haiku-4-5-20251001",
+        max_tokens=200,
+    )
+
+
+async def announce_versie(app) -> None:
+    """Post bij opstart één keer per nieuwe versie een korte changelog (post_init-hook)."""
+    if not BOT_TOKEN or not API_KEY:
+        return
+    try:
+        data = json.loads(POSTED_FILE.read_text())
+    except Exception:
+        data = {}
+    if data.get("versie") == VERSIE:
+        return  # deze versie al aangekondigd
+
+    def _markeer():
+        try:
+            d = json.loads(POSTED_FILE.read_text())
+        except Exception:
+            d = {}
+        d["versie"] = VERSIE
+        POSTED_FILE.write_text(json.dumps(d))
+
+    if VERSIE not in VERSIE_NOTITIES:
+        _markeer()  # geen changelog voor deze versie: niets te melden, niet blijven proberen
+        return
+    bericht = ai_kees_versie_update()
+    if not bericht:
+        # generatie mislukte (tijdelijk) — NIET markeren, volgende start opnieuw proberen
+        log.warning(f"Versie-aankondiging v{VERSIE}: leeg bericht, opnieuw bij volgende start.")
+        return
+    await app.bot.send_message(chat_id=CHAT_ID, text=bericht)
+    geschiedenis.append(f"AI Kees: {bericht}")
+    _save_history()
+    _markeer()  # pas markeren ná succesvolle post
+    log.info(f"Versie-update v{VERSIE} aangekondigd: {bericht}")
 
 
 def ai_kees_daily_update() -> str:
@@ -637,16 +799,19 @@ def mark_posted_today():
 
 # ── Gesprekvenster ────────────────────────────────────────────────────────────
 
-actieve_gesprekken: dict[int, float] = {}
+# Eén venster voor het hele gesprek (niet per gebruiker): zodra Kees echt iets
+# zegt staat het ~GESPREK_TIMEOUT seconden open voor iedereen. Binnen dat venster
+# beoordeelt Kees zélf of een bericht aan hem gericht is (zie mag_zwijgen).
+laatste_kees_reactie: float = 0.0
 
 
-def in_actief_gesprek(user_id: int) -> bool:
-    ts = actieve_gesprekken.get(user_id)
-    return ts is not None and (time.monotonic() - ts) < GESPREK_TIMEOUT
+def in_actief_gesprek() -> bool:
+    return (time.monotonic() - laatste_kees_reactie) < GESPREK_TIMEOUT
 
 
-def markeer_actief(user_id: int):
-    actieve_gesprekken[user_id] = time.monotonic()
+def markeer_actief():
+    global laatste_kees_reactie
+    laatste_kees_reactie = time.monotonic()
 
 
 # ── Telegram handlers ─────────────────────────────────────────────────────────
@@ -695,44 +860,68 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                           ["gewonnen", "verloren", "gelijkspel", "uitslag", "scoort", "goal"]
                           ) and random.random() < 0.25
     kees_trigger    = "kees" in tekst_lower and not direct_mention
-    gesprek_trigger = in_actief_gesprek(user_id) and not kees_trigger and not direct_mention
+    gesprek_trigger = in_actief_gesprek() and not kees_trigger and not direct_mention
 
     is_direct = direct_mention or kees_trigger or is_floris and gesprek_trigger
 
     if not is_direct and not smit_trigger and not uitslag_trigger and not gesprek_trigger:
         return
 
+    # Puur doorpraten in de groep (geen mention/"kees"/smit/uitslag): laat Kees zélf
+    # beoordelen of het aan hem gericht is — anders houdt hij zich gedeisd.
+    mag_zwijgen = gesprek_trigger and not (direct_mention or kees_trigger
+                                           or smit_trigger or uitslag_trigger)
+
     tekst = msg.text.replace(f'@{bot_username}', '').strip() or "Hallo"
     log.info(f"Reactie getriggerd ({naam}{'*' if is_floris else ''}): {tekst}")
 
-    pre_delay = random.uniform(1, 3) if (is_direct or gesprek_trigger) else random.randint(8, 45)
-    await asyncio.sleep(pre_delay)
+    # Bij een directe aanspraak even kort wachten (~4s) zodat een paar berichten ná de mention
+    # ook in de context zitten — dan reageert Kees op de hele flow i.p.v. één losse regel.
+    if direct_mention or kees_trigger:
+        pre_delay = random.uniform(3, 5)
+    elif is_direct or gesprek_trigger:
+        pre_delay = random.uniform(1, 3)
+    else:
+        pre_delay = random.randint(8, 45)
 
     try:
-        t0         = time.monotonic()
-        stop_event = asyncio.Event()
-        typing_task = asyncio.create_task(keep_typing(context.bot, msg.chat_id, stop_event))
+        loop = asyncio.get_event_loop()
 
-        reply = await asyncio.get_event_loop().run_in_executor(
-            None, ai_kees_reply, naam, tekst, list(geschiedenis), is_floris
-        )
-
-        if not reply:
-            stop_event.set()
-            await typing_task
-            return
-
-        elapsed       = time.monotonic() - t0
-        typing_target = max(1.5, len(reply) / 50)
-        if elapsed < typing_target:
-            await asyncio.sleep(typing_target - elapsed)
+        if mag_zwijgen:
+            # Eerst stil beoordelen of hij iets te zeggen heeft — géén "typt…" tonen
+            # als hij zich gedeisd houdt.
+            reply = await loop.run_in_executor(
+                None, ai_kees_reply, naam, tekst, list(geschiedenis), is_floris, True
+            )
+            if not reply:
+                return
+            await asyncio.sleep(pre_delay)
+            stop_event = asyncio.Event()
+            typing_task = asyncio.create_task(keep_typing(context.bot, msg.chat_id, stop_event))
+            await asyncio.sleep(max(1.5, len(reply) / 50))
+        else:
+            await asyncio.sleep(pre_delay)
+            t0         = time.monotonic()
+            stop_event = asyncio.Event()
+            typing_task = asyncio.create_task(keep_typing(context.bot, msg.chat_id, stop_event))
+            reply = await loop.run_in_executor(
+                None, ai_kees_reply, naam, tekst, list(geschiedenis), is_floris, False
+            )
+            if not reply:
+                stop_event.set()
+                await typing_task
+                return
+            elapsed       = time.monotonic() - t0
+            typing_target = max(1.5, len(reply) / 50)
+            if elapsed < typing_target:
+                await asyncio.sleep(typing_target - elapsed)
 
         stop_event.set()
         await typing_task
         await msg.reply_text(reply)
         geschiedenis.append(f"AI Kees: {reply}")
         _save_history()
-        markeer_actief(user_id)
+        markeer_actief()
         log.info(f"AI Kees antwoordde: {reply}")
 
     except Exception as e:
@@ -894,6 +1083,97 @@ def _stand() -> list[dict]:
     return json.loads(result.stdout)
 
 
+# Per afgelopen wedstrijd: wie voorspelde wat en hoeveel punten leverde dat op
+# (toto/exact, zelfde scoring als de site). Voor de na-wedstrijd-recap van Kees.
+_MATCH_RECAP_JS = """
+const d=require('./data.js');
+const ids=process.argv.slice(1);
+const toto=(h,a)=>h>a?1:h<a?-1:0;
+const parse=s=>{if(!s||typeof s!=='string'||!s.includes('-'))return null;
+  const[a,b]=s.split('-').map(Number);return isNaN(a)||isNaN(b)?null:[a,b];};
+const info={}; for(const m of d.GROUP_MATCHES) info[m.id]=m;
+const out=[];
+for(const id of ids){
+  const m=info[id]; if(!m) continue;
+  const r=parse(d.UITSLAGEN.group[id]); if(!r) continue;
+  const v=[];
+  for(const n of d.DEELNEMERS){
+    const p=parse(d.VOORSPELLINGEN[n].group[id]); if(!p) continue;
+    const t=toto(p[0],p[1])===toto(r[0],r[1]);
+    const e=p[0]===r[0]&&p[1]===r[1];
+    let pts=0; if(t)pts+=d.SCORING.group.toto; if(e)pts+=d.SCORING.group.exact;
+    v.push({naam:n,voorspelling:`${p[0]}-${p[1]}`,toto:t,exact:e,punten:pts});
+  }
+  v.sort((a,b)=>b.punten-a.punten);
+  out.push({id,home:m.home,away:m.away,uitslag:`${r[0]}-${r[1]}`,voorspellers:v});
+}
+console.log(JSON.stringify(out));
+"""
+
+
+def _match_recap(ids: list[str]) -> list[dict]:
+    try:
+        result = subprocess.run(["node", "-e", _MATCH_RECAP_JS, *ids],
+                                cwd=REPO_DIR, capture_output=True, text=True, check=True)
+        return json.loads(result.stdout)
+    except Exception as e:
+        log.error(f"_match_recap mislukt: {e}")
+        return []
+
+
+def _recap_opdracht(recap: list[dict], oude_stand: list[dict], nieuwe_stand: list[dict],
+                    oude_leiders: list[str], nieuwe_leiders: list[str]) -> str:
+    """Bouwt de prompt voor Kees' na-wedstrijd-recap: wie voorspelde goed (exact =
+    eervolle vermelding) + standbewustzijn (wie loopt uit / klimt)."""
+    oud_r   = {s["naam"]: s["rank"]   for s in oude_stand}
+    oud_p   = {s["naam"]: s["totaal"] for s in oude_stand}
+    nieuw_p = {s["naam"]: s["totaal"] for s in nieuwe_stand}
+
+    regels = []
+    for w in recap:
+        kop = f"{w['home']}-{w['away']} werd {w['uitslag']}."
+        scoorders = [v for v in w["voorspellers"] if v["punten"] > 0]
+        if scoorders:
+            delen = [f"{v['naam']} ({v['voorspelling']}, "
+                     f"{'EXACT goed' if v['exact'] else 'toto'}, +{v['punten']})"
+                     for v in scoorders]
+            kop += " Punten: " + ", ".join(delen) + "."
+        else:
+            kop += " Niemand had 'm goed."
+        regels.append(kop)
+
+    top5 = "; ".join(
+        f"{s['rank']}. {s['naam']} {s['totaal']}p"
+        + (f" (was {oud_r[s['naam']]}e)" if oud_r.get(s["naam"]) not in (None, s["rank"]) else "")
+        for s in nieuwe_stand[:5]
+    )
+
+    leider_ctx = ""
+    if len(nieuwe_leiders) == 1:
+        L = nieuwe_leiders[0]
+        if nieuwe_leiders != oude_leiders:
+            leider_ctx = f"{L} grijpt de koppositie (was {' en '.join(oude_leiders)})."
+        else:
+            t_oud   = max((oud_p[n]   for n in oud_p   if n != L), default=None)
+            t_nieuw = max((nieuw_p[n] for n in nieuw_p if n != L), default=None)
+            if t_oud is not None and t_nieuw is not None:
+                go, gn = oud_p[L] - t_oud, nieuw_p[L] - t_nieuw
+                if gn > go:
+                    leider_ctx = f"{L} stond al eerste en loopt verder uit (voorsprong {go}->{gn}p)."
+                elif gn < go:
+                    leider_ctx = f"{L} blijft eerste, maar de voorsprong slinkt ({go}->{gn}p)."
+
+    return (
+        "Er zijn groepsuitslagen verwerkt. Maak als AI Kees één levendig berichtje voor de groep "
+        "(2-4 zinnen): noem wie het goed voorspelde, geef een EXACT goede toto een eervolle "
+        "vermelding, en zeg kort wat het met de stand doet. Wees je bewust van de stand — wie "
+        "loopt uit, wie klimt. Gaat het over jezelf: geniet ervan. Over Smit: je weet wat je doet.\n\n"
+        f"Wedstrijden: {' '.join(regels)}\n"
+        f"Stand nu (top 5): {top5}.\n"
+        + (f"Koppositie: {leider_ctx}\n" if leider_ctx else "")
+    )
+
+
 def _leiders(stand: list[dict]) -> list[str]:
     top = stand[0]["totaal"]
     return [s["naam"] for s in stand if s["totaal"] == top]
@@ -1043,7 +1323,7 @@ async def run_check_uitslagen():
         by_pair[(m["away"], m["home"])] = (m["id"], True)
 
     bestaand = _lees_group_uitslagen()
-    nieuwe, beschrijvingen = {}, []
+    nieuwe = {}
     for d in (date.today(), date.today() - timedelta(days=1)):
         try:
             data = _football_api("fixtures", {"league": WC_LEAGUE_ID,
@@ -1064,7 +1344,6 @@ async def run_check_uitslagen():
                 continue
             mid, flip = paar
             nieuwe[mid] = f"{ga}-{gh}" if flip else f"{gh}-{ga}"
-            beschrijvingen.append(f"{home} - {away}: {gh}-{ga}")
 
     if not nieuwe:
         log.info("Check uitslagen: geen nieuwe afgelopen wedstrijden gevonden.")
@@ -1088,30 +1367,17 @@ async def run_check_uitslagen():
 
     nieuwe_stand = _stand()
     oude_leiders, nieuwe_leiders = _leiders(oude_stand), _leiders(nieuwe_stand)
-    opdracht = None
-    if nieuwe_leiders != oude_leiders:
-        fmt = lambda namen: " en ".join(namen) if len(namen) <= 3 else "een grote gedeelde kopgroep"
-        opdracht = (f"Nieuws uit de poule: na deze uitslag(en) — {'; '.join(beschrijvingen)} — "
-                    f"staat {fmt(nieuwe_leiders)} nu bovenaan het klassement. "
-                    f"Daarvoor was dat {fmt(oude_leiders)}. "
-                    f"Maak hier als AI Kees één bericht over voor de groep (max 2-3 zinnen). "
-                    f"Sta je er zelf bovenaan, dan mag je daarvan genieten.")
-        log_label = "Leiderschapswissel gemeld"
-    else:
-        # Af en toe een droog standfeitje: max één per dag, en niet elke keer
-        feit = _standfeit(oude_stand, nieuwe_stand)
-        if feit and _posted_get("standfeit") != str(date.today()) and random.random() < 0.6:
-            opdracht = (f"Feitje uit de poule: na deze uitslag(en) — {'; '.join(beschrijvingen)} — "
-                        f"geldt: {feit}. Drop dit als AI Kees droogjes in de groep, "
-                        f"max 2 zinnen. Gaat het over jezelf, dan mag je daarvan genieten; "
-                        f"gaat het over Smit, dan weet je wat je te doen staat.")
-            log_label = "Standfeitje gemeld"
 
-    if opdracht and BOT_TOKEN and API_KEY:
+    # Na elke wedstrijd een recap: wie voorspelde het goed (exact = eervolle vermelding)
+    # en wat doet het met de stand (Kees is zich bewust van wie uitloopt/klimt).
+    recap = _match_recap(list(nieuwe.keys()))
+    if recap and BOT_TOKEN and API_KEY:
+        opdracht = _recap_opdracht(recap, oude_stand, nieuwe_stand,
+                                   oude_leiders, nieuwe_leiders)
         reply = _call_claude(
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": opdracht}],
-            tools=CHAT_TOOLS,
+            tools=[],
             model="claude-haiku-4-5-20251001",
             max_tokens=300,
         )
@@ -1119,9 +1385,7 @@ async def run_check_uitslagen():
             await Bot(token=BOT_TOKEN).send_message(chat_id=CHAT_ID, text=reply)
             geschiedenis.append(f"AI Kees: {reply}")
             _save_history()
-            if log_label == "Standfeitje gemeld":
-                _posted_set("standfeit")
-            log.info(f"{log_label}: {reply}")
+            log.info(f"Na-wedstrijd recap gepost: {reply}")
 
     await meld_ronde_winnaar()
     await meld_dode_kampioenen()
@@ -1159,16 +1423,18 @@ def main():
         log.error("BOT_TOKEN of ANTHROPIC_API_KEY ontbreekt in .env")
         sys.exit(1)
 
-    app = Application.builder().token(BOT_TOKEN).concurrent_updates(True).build()
+    app = (Application.builder().token(BOT_TOKEN).concurrent_updates(True)
+           .post_init(announce_versie).build())
     app.add_handler(MessageHandler(
         filters.TEXT & filters.Chat(CHAT_ID),
         handle_message,
     ))
-    log.info("AI Kees is online — wacht op berichten")
+    log.info(f"AI Kees v{VERSIE} is online — wacht op berichten")
     app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == '__main__':
+    log.info(f"AI Kees bot v{VERSIE} — start ({' '.join(sys.argv[1:]) or 'chat'})")
     if '--daily-update' in sys.argv:
         asyncio.run(run_daily_update())
     elif '--pre-match' in sys.argv:
