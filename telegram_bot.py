@@ -32,7 +32,7 @@ from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
 load_dotenv(Path(__file__).parent / '.env')
 
-VERSIE           = "2.31"  # AI Kees bot — versiebeheer (baseline). Verhoog bij elke release.
+VERSIE           = "2.32"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
 # Korte changelog per versie. Bij een nieuwe versie kondigt Kees dit beknopt aan in de groep
 # (1x per versie, bij opstart). Geen notitie = geen aankondiging.
 VERSIE_NOTITIES  = {
@@ -40,6 +40,11 @@ VERSIE_NOTITIES  = {
             "door zonder je te noemen, dan hou je je gedeisd (zeg 'Kees' of tag me als je me "
             "wil). 2) Na elke wedstrijd geef je een recap: wie voorspelde het goed (exact goede "
             "toto = eervolle vermelding) en wat het met de stand doet.",
+    "2.32": "Wat er nieuw is: 1) je luistert beter, je zwijgt als de groep onderling doorkletst "
+            "zonder je te noemen (roep 'Kees' of tag me als je me wil). 2) word je aangesproken, "
+            "dan lees je even de berichten eromheen zodat je slimmer reageert. 3) na elke wedstrijd "
+            "een recap: wie voorspelde het goed (exact goede toto = eervolle vermelding) en wat het "
+            "met de stand doet. 4) je bent wat sassier geworden.",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
@@ -599,10 +604,10 @@ def ai_kees_versie_update() -> str:
     if not notitie:
         return ""
     prompt = (
-        f"Je bent zojuist geüpdatet naar versie {VERSIE}. Kondig dat heel beknopt aan in de "
-        f"groep in jouw eigen stijl. Begin in de ik-vorm, zoiets als 'Ik heb een update "
-        f"gekregen, ik...'. Eén of twee zinnen, noem kort wat er verandert. "
-        f"Wat er nieuw is: {notitie}"
+        f"Je bent zojuist geüpdatet. Kondig dat heel kort en puntig aan, sassy, in jouw stijl. "
+        f"Begin met 'Ik draai nu op KeesOS {VERSIE}.' en noem dan in max 1 korte zin de paar "
+        f"opvallendste dingen. Heel bondig en sassy, geen complete opsomming, geen gelul. "
+        f"Wat er nieuw is (kies de highlights, niet alles): {notitie}"
     )
     return _call_claude(
         system=SYSTEM_PROMPT,
