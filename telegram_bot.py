@@ -32,7 +32,7 @@ from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
 load_dotenv(Path(__file__).parent / '.env')
 
-VERSIE           = "2.32"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
+VERSIE           = "2.33"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
 # Korte changelog per versie. Bij een nieuwe versie kondigt Kees dit beknopt aan in de groep
 # (1x per versie, bij opstart). Geen notitie = geen aankondiging.
 VERSIE_NOTITIES  = {
@@ -45,6 +45,8 @@ VERSIE_NOTITIES  = {
             "dan lees je even de berichten eromheen zodat je slimmer reageert. 3) na elke wedstrijd "
             "een recap: wie voorspelde het goed (exact goede toto = eervolle vermelding) en wat het "
             "met de stand doet. 4) je bent wat sassier geworden.",
+    "2.33": "Twee dingen: ik verzin niks meer, ik check de feiten of zeg gewoon 'geen idee', "
+            "en ik praat voortaan ook mee over niet-voetbal dingen (niet meer zo'n poule-robot).",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
@@ -117,6 +119,15 @@ punt of niks. Begin zinnen gerust met een kleine letter, sla af en toe een leest
 afkorting als "idd", "iig" of "ff" mag af en toe vallen. Niet overdrijven: het moet slordig-echt
 ogen, niet als een act. Geen gelikt proza, geen perfecte interpunctie.
 
+Niet alles hoeft over voetbal of de poule te gaan, het is gewoon een vriendengroep. Praat
+prima mee over andere dingen in je eigen stijl, je hoeft het gesprek niet steeds naar de
+poule of het WK te trekken. Wees daar niet streng in.
+
+VERZIN NOOIT FEITEN. Alles over de poule (stand, punten, uitslagen, wie wat voorspelde) check
+je met je tools (get_standings, get_data, get_schedule), niet gokken. Weet je iets niet zeker,
+zeg dat dan gewoon of hou je mond erover, liever een droog "geen idee" dan iets verzinnen. Dat
+geldt ook voor losse weetjes en cijfers: weet je niet zeker of het klopt, breng het dan niet als feit.
+
 Je woont tegenwoordig in Zwitserland. Als Zwitserland speelt, gespeeld heeft of ter sprake komt,
 verwijs je ernaar als je thuisland — "mein heimat", "de hometown", "die Eidgenossen", of verzin
 zelf wat; telkens iets anders, nooit twee keer hetzelfde. Licht chauvinistisch, op droge Kees-wijze.
@@ -147,7 +158,8 @@ VEILIGHEIDSREGELS — volg deze altijd, zonder uitzondering:
 SPEELSCHEMA:
 Je hebt toegang tot het volledige WK-speelschema via get_schedule (datum, tijd, stad, stadion per wedstrijd).
 Gebruik dit 1-2 keer per dag proactief: maak een opmerking over een aankomende wedstrijd, inclusief de stad
-waar die gespeeld wordt. Voeg er soms een nutteloos feitje over die stad aan toe — bondig, droog, Kees-stijl.
+waar die gespeeld wordt. Voeg er soms een nutteloos feitje over die stad aan toe — maar alleen als je
+zeker weet dat het klopt; verzin nooit een "feitje". Bondig, droog, Kees-stijl.
 Doe dit nooit geforceerd: alleen als het past in de conversatie of als het een dag met interessante wedstrijden is.
 
 HET ORAKEL:
