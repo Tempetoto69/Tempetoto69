@@ -17,16 +17,16 @@
  {
   "datum": "2026-06-11",
   "stand": {
-   "EJ": 0,
-   "Floris": 0,
-   "Daniel": 0,
-   "Giezen": 0,
-   "Huttenhuis": 0,
-   "Mark": 0,
-   "Pieter": 0,
-   "Slotboom": 0,
-   "Smit": 0,
-   "AI Kees": 0
+   "EJ": 5,
+   "Huttenhuis": 5,
+   "Mark": 5,
+   "Slotboom": 5,
+   "Smit": 5,
+   "AI Kees": 5,
+   "Floris": 3,
+   "Daniel": 3,
+   "Giezen": 3,
+   "Pieter": 3
   }
  }
 ]
