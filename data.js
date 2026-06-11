@@ -198,6 +198,156 @@ function leegVoorspelling(){
 const VOORSPELLINGEN = {};
 DEELNEMERS.forEach(n=>{ VOORSPELLINGEN[n]=leegVoorspelling(); });
 
+// >>> VOORSPELLING EJ (gegenereerd door verwerk_voorspelling.py)
+Object.assign(VOORSPELLINGEN["EJ"], {
+  "prematch": {
+    "champion": "Spanje",
+    "finalist_predicted": "",
+    "surprise": "Noorwegen",
+    "deception": "Argentinië",
+    "topscorer": "YAMAL",
+    "topscorerGoals": 8,
+    "totalGoals": 280,
+    "yellow": 360,
+    "red": 16
+  },
+  "group": {
+    "A1": "2-0",
+    "B1": "1-0",
+    "A2": "2-1",
+    "B2": "0-3",
+    "A3": "2-1",
+    "B3": "2-1",
+    "A4": "1-0",
+    "B4": "3-1",
+    "A5": "0-2",
+    "B5": "2-1",
+    "A6": "0-2",
+    "B6": "2-0",
+    "C1": "2-1",
+    "D1": "2-1",
+    "C2": "0-2",
+    "D2": "1-3",
+    "C3": "0-1",
+    "D3": "2-0",
+    "C4": "3-0",
+    "D4": "2-1",
+    "C5": "2-3",
+    "D5": "1-1",
+    "C6": "2-0",
+    "D6": "2-1",
+    "E1": "3-0",
+    "F1": "1-0",
+    "E2": "1-1",
+    "F2": "2-1",
+    "E3": "2-1",
+    "F3": "2-1",
+    "E4": "2-0",
+    "F4": "0-2",
+    "E5": "0-3",
+    "F5": "1-0",
+    "E6": "0-1",
+    "F6": "0-2",
+    "G1": "2-0",
+    "H1": "4-0",
+    "G2": "2-0",
+    "H2": "0-2",
+    "G3": "2-1",
+    "H3": "3-0",
+    "G4": "0-3",
+    "H4": "2-0",
+    "G5": "2-1",
+    "H5": "0-1",
+    "G6": "0-3",
+    "H6": "1-2",
+    "I1": "2-1",
+    "J1": "2-0",
+    "I2": "0-2",
+    "J2": "2-0",
+    "I3": "3-0",
+    "J3": "2-1",
+    "I4": "2-1",
+    "J4": "0-1",
+    "I5": "0-1",
+    "J5": "0-1",
+    "I6": "2-0",
+    "J6": "0-3",
+    "K1": "2-0",
+    "L1": "2-1",
+    "K2": "0-2",
+    "L2": "2-1",
+    "K3": "3-0",
+    "L3": "2-0",
+    "K4": "2-1",
+    "L4": "0-1",
+    "K5": "1-2",
+    "L5": "0-2",
+    "K6": "1-0",
+    "L6": "2-1"
+  },
+  "top2": {
+    "A": [
+      "Mexico",
+      "Zuid-Korea"
+    ],
+    "B": [
+      "Zwitserland",
+      "Canada"
+    ],
+    "C": [
+      "Brazilië",
+      "Marokko"
+    ],
+    "D": [
+      "Turkije",
+      "Verenigde Staten"
+    ],
+    "E": [
+      "Duitsland",
+      "Ivoorkust"
+    ],
+    "F": [
+      "Nederland",
+      "Japan"
+    ],
+    "G": [
+      "België",
+      "Egypte"
+    ],
+    "H": [
+      "Spanje",
+      "Uruguay"
+    ],
+    "I": [
+      "Frankrijk",
+      "Noorwegen"
+    ],
+    "J": [
+      "Argentinië",
+      "Oostenrijk"
+    ],
+    "K": [
+      "Portugal",
+      "Colombia"
+    ],
+    "L": [
+      "Engeland",
+      "Kroatië"
+    ]
+  },
+  "best3": [
+    "Tsjechië",
+    "Bosnië-Herzegovina",
+    "Schotland",
+    "Paraguay",
+    "Ecuador",
+    "Zweden",
+    "Senegal",
+    "Ghana"
+  ]
+});
+// <<< VOORSPELLING EJ
+
 // >>> VOORSPELLING Slotboom (gegenereerd door verwerk_voorspelling.py)
 Object.assign(VOORSPELLINGEN["Slotboom"], {
   "prematch": {

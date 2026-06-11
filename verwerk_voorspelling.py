@@ -68,7 +68,8 @@ def norm_score(val, context):
 TEAM_ALIAS = {"vs": "Verenigde Staten", "usa": "Verenigde Staten",
               "amerika": "Verenigde Staten", "holland": "Nederland",
               "nederand": "Nederland", "bosnië": "Bosnië-Herzegovina",
-              "brazillie": "Brazilië", "algarije": "Algerije"}
+              "brazillie": "Brazilië", "algarije": "Algerije",
+              "kor": "Zuid-Korea"}  # 'KOR' is geen prefix van Zuid-Korea
 
 
 def _ruw(s):
@@ -93,6 +94,14 @@ def norm_team(val, context):
         if _ruw(t) == _ruw(s):
             warn(f"{context}: '{s}' gelezen als '{t}'")
             return t
+    if 2 <= len(s) <= 4:  # afkortingen als 'MEX', 'ZWI' — alleen bij uniek prefix
+        kandidaten = [t for t in ALL_TEAMS if _ruw(t).startswith(_ruw(s))]
+        if len(kandidaten) == 1:
+            warn(f"{context}: '{s}' gelezen als '{kandidaten[0]}'")
+            return kandidaten[0]
+        if len(kandidaten) > 1:
+            warn(f"{context}: '{s}' is dubbelzinnig ({', '.join(kandidaten)}) — overgeslagen")
+            return None
     warn(f"{context}: onbekend land '{s}' overgeslagen")
     return None
 
