@@ -198,6 +198,156 @@ function leegVoorspelling(){
 const VOORSPELLINGEN = {};
 DEELNEMERS.forEach(n=>{ VOORSPELLINGEN[n]=leegVoorspelling(); });
 
+// >>> VOORSPELLING Floris (gegenereerd door verwerk_voorspelling.py)
+Object.assign(VOORSPELLINGEN["Floris"], {
+  "prematch": {
+    "champion": "Nederland",
+    "finalist_predicted": "",
+    "surprise": "Canada",
+    "deception": "Frankrijk",
+    "topscorer": "Koning Gakpo",
+    "topscorerGoals": 6,
+    "totalGoals": 281,
+    "yellow": 333,
+    "red": 13
+  },
+  "group": {
+    "A1": "1-0",
+    "B1": "2-0",
+    "A2": "2-1",
+    "B2": "0-1",
+    "A3": "2-1",
+    "B3": "1-0",
+    "A4": "2-2",
+    "B4": "3-0",
+    "A5": "0-1",
+    "B5": "1-1",
+    "A6": "2-3",
+    "B6": "2-1",
+    "C1": "3-1",
+    "D1": "2-1",
+    "C2": "0-2",
+    "D2": "1-1",
+    "C3": "2-3",
+    "D3": "2-0",
+    "C4": "4-0",
+    "D4": "1-0",
+    "C5": "1-2",
+    "D5": "1-2",
+    "C6": "3-1",
+    "D6": "0-1",
+    "E1": "3-0",
+    "F1": "2-1",
+    "E2": "1-1",
+    "F2": "3-0",
+    "E3": "1-1",
+    "F3": "1-0",
+    "E4": "1-0",
+    "F4": "0-2",
+    "E5": "1-2",
+    "F5": "1-0",
+    "E6": "1-2",
+    "F6": "0-3",
+    "G1": "3-0",
+    "H1": "5-0",
+    "G2": "2-1",
+    "H2": "0-3",
+    "G3": "1-1",
+    "H3": "2-1",
+    "G4": "0-1",
+    "H4": "2-1",
+    "G5": "0-1",
+    "H5": "1-0",
+    "G6": "1-4",
+    "H6": "2-2",
+    "I1": "1-1",
+    "J1": "2-0",
+    "I2": "0-2",
+    "J2": "3-0",
+    "I3": "3-2",
+    "J3": "1-1",
+    "I4": "2-0",
+    "J4": "1-2",
+    "I5": "1-1",
+    "J5": "1-2",
+    "I6": "2-0",
+    "J6": "0-0",
+    "K1": "2-0",
+    "L1": "2-2",
+    "K2": "0-4",
+    "L2": "2-1",
+    "K3": "3-0",
+    "L3": "1-0",
+    "K4": "2-1",
+    "L4": "1-2",
+    "K5": "3-3",
+    "L5": "0-4",
+    "K6": "1-0",
+    "L6": "2-1"
+  },
+  "top2": {
+    "A": [
+      "Mexico",
+      "Zuid-Korea"
+    ],
+    "B": [
+      "Canada",
+      "Bosnië-Herzegovina"
+    ],
+    "C": [
+      "Brazilië",
+      "Marokko"
+    ],
+    "D": [
+      "Verenigde Staten",
+      "Turkije"
+    ],
+    "E": [
+      "Duitsland",
+      "Ivoorkust"
+    ],
+    "F": [
+      "Nederland",
+      "Japan"
+    ],
+    "G": [
+      "België",
+      "Iran"
+    ],
+    "H": [
+      "Spanje",
+      "Uruguay"
+    ],
+    "I": [
+      "Noorwegen",
+      "Frankrijk"
+    ],
+    "J": [
+      "Oostenrijk",
+      "Argentinië"
+    ],
+    "K": [
+      "Colombia",
+      "Portugal"
+    ],
+    "L": [
+      "Engeland",
+      "Kroatië"
+    ]
+  },
+  "best3": [
+    "Senegal",
+    "Ecuador",
+    "Australië",
+    "Zweden",
+    "Schotland",
+    "Tsjechië",
+    "Ghana",
+    "Algerije"
+  ]
+});
+// <<< VOORSPELLING Floris
+
 // >>> VOORSPELLING EJ (gegenereerd door verwerk_voorspelling.py)
 Object.assign(VOORSPELLINGEN["EJ"], {
   "prematch": {
@@ -1271,6 +1421,9 @@ VOORSPELLINGEN["Mark"].prematch.topscorerGoals = "5";
 
 // EJ vulde 'YAMAL' in kapitalen in — scoring en stats vergelijken exact.
 VOORSPELLINGEN["EJ"].prematch.topscorer = "Yamal";
+
+// Floris vulde 'Koning Gakpo' in — genormaliseerd zodat de scoring matcht.
+VOORSPELLINGEN["Floris"].prematch.topscorer = "Gakpo";
 
 // ============================================================
 //  UITSLAGEN (door organisator / later de agent)

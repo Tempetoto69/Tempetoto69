@@ -69,7 +69,9 @@ TEAM_ALIAS = {"vs": "Verenigde Staten", "usa": "Verenigde Staten",
               "amerika": "Verenigde Staten", "holland": "Nederland",
               "nederand": "Nederland", "bosnië": "Bosnië-Herzegovina",
               "brazillie": "Brazilië", "algarije": "Algerije",
-              "kor": "Zuid-Korea"}  # 'KOR' is geen prefix van Zuid-Korea
+              "kor": "Zuid-Korea",  # 'KOR' is geen prefix van Zuid-Korea
+              "bosnie": "Bosnië-Herzegovina", "marrokko": "Marokko",
+              "argentine": "Argentinië", "england": "Engeland"}
 
 
 def _ruw(s):
