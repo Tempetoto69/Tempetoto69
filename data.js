@@ -1116,6 +1116,9 @@ VOORSPELLINGEN["Huttenhuis"].best3.push("Bosnië-Herzegovina");
 VOORSPELLINGEN["Mark"].prematch.topscorer = "Mbappé";
 VOORSPELLINGEN["Huttenhuis"].prematch.topscorer = "Mbappé";
 
+// Mark wijzigde vóór de aftrap (11 juni 2026) zijn topscorer-goals van 4 naar 5.
+VOORSPELLINGEN["Mark"].prematch.topscorerGoals = "5";
+
 // ============================================================
 //  UITSLAGEN (door organisator / later de agent)
 // ============================================================
