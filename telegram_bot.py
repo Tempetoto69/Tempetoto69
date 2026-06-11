@@ -441,6 +441,18 @@ def ai_kees_daily_update() -> str:
     iso = nu.strftime("%Y-%m-%d")
     gisteren = (nu - timedelta(days=1)).strftime("%Y-%m-%d")
 
+    # Speeldagnummer: aantal unieke wedstrijddagen t/m vandaag (deterministisch,
+    # niet aan het model overlaten)
+    try:
+        sch = json.loads(SCHEDULE_FILE.read_text())
+        datums = {i["datum"] for i in sch.get("groepsfase", {}).values()}
+        for ronde in sch.get("knockout", {}).values():
+            datums.update(m["datum"] for m in ronde)
+        speeldag = max(1, len([d for d in datums if d <= iso]))
+    except Exception as e:
+        log.error(f"Speeldag-berekening mislukt: {e}")
+        speeldag = "?"
+
     system = SYSTEM_PROMPT + f"""
 
 Speciale taak: dagelijkse Tempetoto stand-update.
@@ -460,7 +472,8 @@ Stappen:
 OPMAAK — dit bulletin wijkt af van je losse chat-stijl: verzorgde interpunctie en gewoon
 hoofdletters (de droge Kees-toon blijft). Vaste structuur, per kopje 1 tot 3 korte regels:
 
-[openingszin, mag los boven de kopjes]
+Speeldag {speeldag}
+[de allereerste regel is ALTIJD precies "Speeldag {speeldag}", daarna je openingszin]
 
 📊 De stand
 Top 3 met punten en je eigen positie, plus de opvallendste verschuiving sinds gisteren.
