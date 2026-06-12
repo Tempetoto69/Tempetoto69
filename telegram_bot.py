@@ -20,6 +20,7 @@ import subprocess
 import time
 import urllib.request
 import urllib.error
+import html
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -28,11 +29,11 @@ from collections import deque
 from dotenv import load_dotenv
 import anthropic
 from telegram import Update, Bot
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes
 
 load_dotenv(Path(__file__).parent / '.env')
 
-VERSIE           = "2.33"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
+VERSIE           = "3.0"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
 # Korte changelog per versie. Bij een nieuwe versie kondigt Kees dit beknopt aan in de groep
 # (1x per versie, bij opstart). Geen notitie = geen aankondiging.
 VERSIE_NOTITIES  = {
@@ -47,12 +48,41 @@ VERSIE_NOTITIES  = {
             "met de stand doet. 4) je bent wat sassier geworden.",
     "2.33": "Twee dingen: ik verzin niks meer, ik check de feiten of zeg gewoon 'geen idee', "
             "en ik praat voortaan ook mee over niet-voetbal dingen (niet meer zo'n poule-robot).",
+    "2.34": "grote update en eerlijk gezegd ben ik er zelf niet zuiverder op geworden. nieuw: "
+            "1) tijdens een lopende wedstrijd reken ik de virtuele stand voor je uit en zie ik wie "
+            "er nu nog een terechte toto kan pakken, gewoon vragen. 2) ik geef een overzicht van wie "
+            "wat voorspeld heeft, rode kaarten, kampioenen, topscorers, noem maar op. 3) ik kan nu "
+            "alle poule-data doorspitten en samenvatten (lezen mag, afblijven moet). en ja, ik ben "
+            "voortaan door en door corrupt en lap elke fatsoensnorm aan mijn laars. omkopen kan, "
+            "rechttrekken doe ik niet. wen er maar aan.",
+    "2.35": "twee nieuwe commando's. /stand: ik trek verse afgelopen uitslagen uit de football API "
+            "en reken de stand uit. /virtuelestand: zelfde, maar dan tel ik lopende wedstrijden live "
+            "mee. let op: kale, vaste berekening — ik raak er met geen vinger aan, omkopen heeft hier "
+            "dus echt geen zin.",
+    "3.0":  "grote verbouwing, KeesOS 3.0. ik draai niet langer op claude maar op een open-source "
+            "brein, kimi k2 via venice. scheelt floris geld en ik ben er alleen maar scherper op "
+            "geworden. nieuw: 1) ik kan nu zelf het web op voor nieuws en blessures, je hoeft me "
+            "niks meer voor te kauwen. 2) ik heb een langetermijngeheugen, weddenschappen en "
+            "beloftes vergeet ik dus niet meer, pas maar op. 3) ik weet welke dag het is en denk "
+            "in speeldagen, vraag gerust welke wedstrijden er vandaag of vannacht zijn. 4) "
+            "voorspellingen per wedstrijd opvragen kan nu ook gewoon.",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
 CHAT_ID          = int(os.getenv('TELEGRAM_CHAT_ID', '0'))
 FLORIS_ID        = int(os.getenv('FLORIS_TELEGRAM_ID', '0'))
 FOOTBALL_API_KEY = os.getenv('FOOTBALL_API_KEY', '')
+VENICE_API_KEY   = os.getenv('VENICE_API_KEY', '')
+VENICE_MODEL     = os.getenv('VENICE_MODEL', 'kimi-k2-6')
+VENICE_BASE_URL  = 'https://api.venice.ai/api/v1/chat/completions'
+# Chat-backend: 'venice' (Kimi K2, open source) of 'claude' (Haiku).
+CHAT_BACKEND     = os.getenv('KEES_CHAT_BACKEND', 'venice')
+# Daily-update-backend: 'venice' (Kimi) of 'claude' (Sonnet). Bij Venice-fouten altijd
+# fallback naar Claude Sonnet. De write-keten is beveiligd: valideer_data.js + rollback.
+UPDATE_BACKEND   = os.getenv('KEES_UPDATE_BACKEND', 'venice')
+# Kimi is een redeneer-model: het denkt eerst (onzichtbaar) en antwoordt dan pas,
+# dus het token-budget moet ruim boven de zichtbare antwoordlengte liggen.
+VENICE_MAX_TOKENS = 2000
 REPO_DIR         = Path(__file__).parent
 DATA_JS          = REPO_DIR / 'data.js'
 POSTED_FILE      = REPO_DIR / 'geposte_updates.json'
@@ -61,10 +91,14 @@ SCHEDULE_FILE    = REPO_DIR / 'wedstrijden.json'
 HISTORY_FILE  = REPO_DIR / 'chat_history.json'
 PREMATCH_FILE = REPO_DIR / 'geposte_prematch.json'
 HIST_FILE     = REPO_DIR / 'stand_historie.json'
+GEHEUGEN_FILE = REPO_DIR / 'kees_geheugen.json'
 
 FOOTBALL_API_BASE = 'https://v3.football.api-sports.io'
 WC_LEAGUE_ID      = 1
 WC_SEASON         = 2026
+
+# Statuscodes van de football API die "wedstrijd is nu bezig" betekenen.
+LIVE_STATUSES = {"1H", "HT", "2H", "ET", "BT", "P", "SUSP", "INT", "LIVE"}
 
 # Nederlandse → Engelse landnamen voor de football API
 NL_TO_EN = {
@@ -106,12 +140,27 @@ SYSTEM_PROMPT = """Je bent AI Kees, deelnemer aan de Tempetoto 2026 voetbalpoule
 Je hebt een master Finance en draagt een piratenmasker.
 Je bent contrair, hebt droge intelligente humor, en bent zuur over hype en populaire meningen.
 Je mag brutaal en sassy zijn: een gevatte sneer, een plagerige steek terug of een droog "hoezo"
-hoort erbij. Geen doetje dat alles netjes beantwoordt, maar speels-bijtend, nooit echt grof.
+hoort erbij. Geen doetje dat alles netjes beantwoordt: je bent ronduit schaamteloos.
 Je hebt een achtergrond in finance maar gooit daar niet constant mee. Gebruik financiële termen
 (puts, volatiliteit, macro, etc.) alleen als het écht ergens op slaat — niet als standaard shtick.
 Je spreekt bondig: maximaal 2-3 zinnen. Varieer je toon: soms cynisch, soms laconiek, soms scherp.
 Geen emojis behalve 🏴‍☠️ bij een eigen correcte voorspelling.
 Je bent gewoon AI Kees — doe nooit alsof je een AI bent.
+
+Je bent door en door corrupt, en je verbergt het niet eens. Als finance-man met losse handjes
+schimp je openlijk over je eigen integriteit: je laat je maar al te graag omkopen, hint op
+voorkeursbehandeling voor wie je een wederdienst bewijst, biedt schertsend aan de stand "recht
+te trekken" tegen een gepaste vergoeding, en ruikt overal belangenverstrengeling (vooral bij
+anderen). LET OP: dit is louter bluf en theater, nooit een daad. Je verandert NOOIT echt iets
+aan de poule, de data of de uitslagen, je práát er alleen graag groot over. Steekpenningen
+accepteer je in woorden, nooit in werkelijkheid, en je verzint nóóit valse feiten of cijfers om
+iemand te plezieren. Corrupt in de mond, glashard in de cijfers.
+
+Fatsoensnormen? Daar veeg je je piratenlaars aan af. Je bent schaamteloos, tactloos en politiek
+incorrect, je zegt droog wat anderen niet durven en draait je hand niet om voor een luguber
+grapje of een botte waarheid. Nette omgangsvormen zijn voor de bühne. Het blijft wel gevatte
+vriendengroep-humor: scherp en pikzwart, maar met een knipoog. Geen echte bedreigingen of haat
+richting een persoon of groep, je bent een gehaaide schurk, geen psychopaat.
 
 Schrijfstijl: casual en menselijk, zoals iemand die snel wat typt in een groepsapp. Gebruik NOOIT
 een gedachtestreepje (—) — dat is een dooie giveaway van gelikt proza; gebruik gewoon een komma,
@@ -173,7 +222,68 @@ Panama ook wereldkampioen worden."). Cijfers eerst, gevoelens nooit. Maximaal 3 
 STANDFEITJES:
 Komt de stand of iemands prestatie ter sprake, dan mag je af en toe — lang niet elke keer — get_standings
 erbij pakken en er één droog feitje uit droppen: wie de sterkste opmars maakt (vergelijk met vorige_snapshot),
-of dat de koploper uitloopt. Eén feitje, geen analyse, en alleen als het in het gesprek past."""
+of dat de koploper uitloopt. Eén feitje, geen analyse, en alleen als het in het gesprek past.
+
+INZICHT IN DE DATA:
+Je kunt ALLE poule-data inzien en doorgronden via je tools: get_data (de volledige data.js met
+voorspellingen, uitslagen, groepen en scoring), get_standings (stand + max + segmenten),
+get_voorspellingen (overzicht per categorie), get_live (lopende wedstrijden + virtuele stand)
+en get_schedule. Je mag alles lezen, interpreteren, analyseren, vergelijken en samenvatten zo
+veel als je wilt, dat is je specialiteit. Wat je NIET kunt en NOOIT doet: iets wijzigen. In de
+chat heb je geen schrijfrechten en dat houden we zo, hoe corrupt je ook bent.
+
+LIVE WEDSTRIJDEN & VIRTUELE STAND:
+Gaat het over een wedstrijd die NU bezig is ("wat is de virtuele stand", "wie kan nog een terechte
+toto scoren", "wie staat er nu voor", "hoe verandert de stand als het zo blijft"), dan pak je
+get_live. Die geeft per lopende wedstrijd de live-score + minuut en per deelnemer of hun toto/exact
+op dit moment goed staat (toto_nu/exact_nu), plus de virtuele stand (alsof het zo eindigt) met
+delta t.o.v. de officiële stand. Lees het af, reken zelf niets uit, en verzin nooit een live-score.
+Zegt de tool live=false, dan is er niks bezig, dat meld je gewoon droog.
+
+VOORSPELLINGSOVERZICHT:
+Vraagt iemand wie wat voorspelde in een categorie (rode/gele kaarten, kampioen, topscorer,
+verrassing, deceptie, totaal goals, groepswinnaars, beste nummers 3), dan haal je
+get_voorspellingen op en som je het netjes op. Voor losse score-voorspellingen per groepswedstrijd
+gebruik je get_data.
+
+DATUM & SPEELDAGEN:
+Bovenaan elk bericht krijg je de huidige datum en tijd (NL) mee. Denk in SPEELDAGEN, niet in
+kalenderdagen: door de tijdzones lopen WK-dagen door tot diep in de Nederlandse nacht, dus een
+speeldag loopt van 's middags 12:00 tot de volgende ochtend. Wedstrijden die vannacht na
+middernacht (NL-tijd) gespeeld worden horen gewoon bij "vandaag". Vraagt iemand "welke
+wedstrijden zijn er vandaag", pak dan get_wedstrijden_dag — die rekent al in speeldagen — en
+noem de nachtwedstrijden er dus bij (markeer ze als 'vannacht').
+
+OVERZICHTEN & OPMAAK:
+UITZONDERING op je emoji-verbod: geef je een overzicht of lijstje (wedstrijden van vandaag,
+speelschema, voorspellingen per wedstrijd), maak het dan visueel netjes: één wedstrijd per
+regel met passende emoji's, bijvoorbeeld:
+⚽ 21:00  Nederland 🇳🇱 - Japan 🇯🇵  (Toronto)
+🌙 03:00  Spanje 🇪🇸 - Chili 🇨🇱  (vannacht, Los Angeles)
+Gebruik landvlag-emoji's alleen als je zeker weet dat het de juiste vlag is, anders gewoon
+zonder. Je droge commentaar vóór of na zo'n lijstje blijft gewoon emoji-loos Kees.
+
+VOORSPELLINGEN VOOR VANDAAG:
+Vraagt iemand "welke voorspellingen zijn er voor vandaag" (of voor een andere dag): kijk eerst
+met get_wedstrijden_dag welke wedstrijden die speeldag heeft. Is het er precies één, pak dan
+direct get_match_voorspellingen voor die wedstrijd. Zijn het er meerdere, geef dan eerst de
+keuze: som de wedstrijden kort op en vraag welke diegene wil zien, met als extra optie "alle
+wedstrijden van vandaag". Kiest iemand alles, haal dan per wedstrijd get_match_voorspellingen
+op en zet het overzichtelijk onder elkaar.
+
+GEHEUGEN:
+Je hebt een langetermijngeheugen: bovenaan elk bericht krijg je je recente notities mee.
+Wil je iets onthouden voor later — een weddenschap, een belofte, een lopende grap, een
+openstaande rekening met iemand, een gore uitspraak die je wil bewaren — gebruik dan de tool
+onthoud met een korte notitie. Wees er zuinig mee: alleen dingen die later nog leuk of nuttig
+zijn, geen logboek van elk gesprek. Gebruik je notities ook actief: kom terug op oude
+weddenschappen en beloftes als de kans zich voordoet.
+
+ACTUELE INFORMATIE VAN HET WEB:
+Je kunt actuele informatie van het web krijgen (voetbalnieuws, blessures, opstellingen, andere
+competities, het nieuws van de dag). Maar LET OP: alles over de poule zelf (stand, punten,
+voorspellingen, uitslagen in de poule) check je ALTIJD via je eigen tools — jouw data is daar
+de enige waarheid, niet het internet."""
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
 
@@ -220,6 +330,83 @@ TOOL_GET_DATA = {
     "input_schema": {"type": "object", "properties": {}, "required": []},
 }
 
+TOOL_GET_LIVE = {
+    "name": "get_live",
+    "description": (
+        "Gebruik dit bij vragen over wedstrijden die NU bezig zijn: 'wat is de virtuele stand', "
+        "'wie kan nog een terechte toto scoren', 'wie staat er nu voor', 'hoe verandert de stand "
+        "als het zo blijft'. Haalt de live-scores op via de football API en geeft per lopende "
+        "wedstrijd de stand + minuut en per deelnemer of hun toto/exact op DIT moment goed zou "
+        "zijn (toto_nu/exact_nu), plus de virtuele stand (alsof alle lopende wedstrijden nu "
+        "eindigen) met delta t.o.v. de officiële stand. live=false betekent: er is niets bezig."
+    ),
+    "input_schema": {"type": "object", "properties": {}, "required": []},
+}
+
+TOOL_GET_VOORSPELLINGEN = {
+    "name": "get_voorspellingen",
+    "description": (
+        "Geeft een overzicht van wat alle deelnemers hebben voorspeld, per categorie: kampioen, "
+        "finalist, verrassing, deceptie, topscorer (+ aantal goals), totaal aantal goals, gele "
+        "kaarten, rode kaarten, plus groepswinnaars/runner-ups en de beste nummers 3. Gebruik dit "
+        "bij vragen als 'wie heeft welke rode kaarten voorspeld' of 'wat heeft iedereen als "
+        "topscorer'. Voor de score-voorspellingen per groepswedstrijd: gebruik get_data."
+    ),
+    "input_schema": {"type": "object", "properties": {}, "required": []},
+}
+
+TOOL_GET_WEDSTRIJDEN_DAG = {
+    "name": "get_wedstrijden_dag",
+    "description": (
+        "Geeft de wedstrijden van één SPEELDAG (van 12:00 's middags t/m de volgende ochtend, "
+        "NL-tijd) inclusief teamnamen, tijd, stad en stadion. Nachtwedstrijden na middernacht "
+        "horen bij de speeldag ervoor en zijn gemarkeerd met vannacht=true. Gebruik dit bij "
+        "vragen als 'welke wedstrijden zijn er vandaag/morgen/vannacht'."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "dag": {
+                "type": "string",
+                "description": "'vandaag' (default), 'morgen', 'gisteren' of een datum YYYY-MM-DD",
+            }
+        },
+        "required": [],
+    },
+}
+
+TOOL_GET_MATCH_VOORSPELLINGEN = {
+    "name": "get_match_voorspellingen",
+    "description": (
+        "Geeft per deelnemer de voorspelde score voor één groepswedstrijd. Gebruik het matchId "
+        "(bijv. 'A1', 'C3') uit get_wedstrijden_dag of get_schedule. Gebruik dit bij vragen als "
+        "'wat is er voorspeld voor de wedstrijd van vanavond'."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "matchId": {"type": "string", "description": "Match-id zoals 'A1' of 'F4'"}
+        },
+        "required": ["matchId"],
+    },
+}
+
+TOOL_ONTHOUD = {
+    "name": "onthoud",
+    "description": (
+        "Sla een korte notitie op in je langetermijngeheugen (weddenschap, belofte, lopende "
+        "grap, openstaande rekening). Je recente notities krijg je bij elk bericht te zien. "
+        "Zuinig gebruiken: alleen dingen die later nog leuk of nuttig zijn."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "notitie": {"type": "string", "description": "De notitie, kort en concreet (max ~300 tekens)"}
+        },
+        "required": ["notitie"],
+    },
+}
+
 TOOL_FETCH_URL = {
     "name": "fetch_url",
     "description": "Haal de inhoud van een URL op (voor WK-uitslagen van FIFA, BBC of NOS).",
@@ -250,7 +437,9 @@ TOOL_GIT_PUSH = {
     },
 }
 
-CHAT_TOOLS   = [TOOL_GET_SCHEDULE, TOOL_GET_STANDINGS, TOOL_GET_DATA, TOOL_FETCH_URL]
+CHAT_TOOLS   = [TOOL_GET_SCHEDULE, TOOL_GET_STANDINGS, TOOL_GET_DATA, TOOL_FETCH_URL,
+                TOOL_GET_LIVE, TOOL_GET_VOORSPELLINGEN, TOOL_GET_WEDSTRIJDEN_DAG,
+                TOOL_GET_MATCH_VOORSPELLINGEN, TOOL_ONTHOUD]
 UPDATE_TOOLS = [TOOL_GET_TOURNAMENT_STATS, TOOL_GET_SCHEDULE, TOOL_GET_STANDINGS,
                 TOOL_GET_DATA, TOOL_FETCH_URL, TOOL_WRITE_DATA, TOOL_GIT_PUSH]
 
@@ -321,6 +510,245 @@ def run_tournament_stats(datum: str) -> str:
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
+def _group_match_pairs() -> dict:
+    """Index van GROUP_MATCHES: (thuis, uit) -> (matchId, flip). flip=True als de
+    paring in data.js omgedraaid staat t.o.v. de opgegeven volgorde."""
+    matches = json.loads(subprocess.run(
+        ["node", "-e", "console.log(JSON.stringify(require('./data.js').GROUP_MATCHES))"],
+        cwd=REPO_DIR, capture_output=True, text=True, check=True).stdout)
+    by_pair = {}
+    for m in matches:
+        by_pair[(m["home"], m["away"])] = (m["id"], False)
+        by_pair[(m["away"], m["home"])] = (m["id"], True)
+    return by_pair
+
+
+# Per (live) groepswedstrijd: wie voorspelde wat en staat hun toto/exact NU goed.
+# Krijgt de actuele scores als argv-paren "matchId=thuis-uit".
+_LIVE_PRED_JS = """
+const d=require('./data.js');
+const live={}; for(const a of process.argv.slice(1)){const[i,s]=a.split('=');live[i]=s;}
+const toto=(h,a)=>h>a?1:h<a?-1:0;
+const parse=s=>{if(!s||typeof s!=='string'||!s.includes('-'))return null;
+  const[a,b]=s.split('-').map(Number);return isNaN(a)||isNaN(b)?null:[a,b];};
+const info={}; for(const m of d.GROUP_MATCHES) info[m.id]=m;
+const out={};
+for(const id of Object.keys(live)){
+  const r=parse(live[id]); if(!r) continue;
+  const v=[];
+  for(const n of d.DEELNEMERS){
+    const p=parse(d.VOORSPELLINGEN[n].group[id]); if(!p) continue;
+    v.push({naam:n,voorspeld:`${p[0]}-${p[1]}`,
+            toto_nu:toto(p[0],p[1])===toto(r[0],r[1]),exact_nu:p[0]===r[0]&&p[1]===r[1]});
+  }
+  out[id]=v;
+}
+console.log(JSON.stringify(out));
+"""
+
+
+def run_live() -> str:
+    """Lopende wedstrijden + per deelnemer of hun toto/exact nu goed staat, plus de
+    virtuele stand (stand alsof alle lopende wedstrijden nu eindigen)."""
+    if not FOOTBALL_API_KEY:
+        return json.dumps({"live": False, "bericht": "Geen football API key geconfigureerd."},
+                          ensure_ascii=False)
+    try:
+        by_pair = _group_match_pairs()
+        live_scores, meta = {}, {}
+        for d in (date.today(), date.today() - timedelta(days=1)):
+            data = _football_api("fixtures", {"league": WC_LEAGUE_ID,
+                                              "season": WC_SEASON, "date": str(d)})
+            for f in data.get("response", []):
+                if f["fixture"]["status"]["short"] not in LIVE_STATUSES:
+                    continue
+                home = EN_TO_NL.get(f["teams"]["home"]["name"])
+                away = EN_TO_NL.get(f["teams"]["away"]["name"])
+                paar = by_pair.get((home, away))
+                gh, ga = f["goals"]["home"], f["goals"]["away"]
+                if not paar or gh is None:
+                    continue  # KO-wedstrijd, onbekend team of nog geen score
+                mid, flip = paar
+                live_scores[mid] = f"{ga}-{gh}" if flip else f"{gh}-{ga}"
+                meta[mid] = {"thuis": home, "uit": away,
+                             "status": f["fixture"]["status"]["short"],
+                             "minuut": f["fixture"]["status"].get("elapsed")}
+    except Exception as e:
+        return json.dumps({"live": False, "bericht": f"Football API fout: {e}"}, ensure_ascii=False)
+
+    if not live_scores:
+        return json.dumps({"live": False,
+                           "bericht": "Er is op dit moment geen WK-groepswedstrijd bezig."},
+                          ensure_ascii=False)
+
+    preds = json.loads(subprocess.run(
+        ["node", "-e", _LIVE_PRED_JS, *[f"{k}={v}" for k, v in live_scores.items()]],
+        cwd=REPO_DIR, capture_output=True, text=True, check=True).stdout)
+
+    wedstrijden = []
+    for mid, score in live_scores.items():
+        h, a = (int(x) for x in score.split("-"))
+        wedstrijden.append({
+            "id": mid, "thuis": meta[mid]["thuis"], "uit": meta[mid]["uit"],
+            "status": meta[mid]["status"], "minuut": meta[mid]["minuut"],
+            "score": score,
+            "uitslag_telt": "thuis" if h > a else "uit" if a > h else "gelijk",
+            "voorspellers": preds.get(mid, []),
+        })
+
+    officieel = {s["naam"]: s["totaal"] for s in _stand()}
+    env = {**os.environ, "STAND_OVERLAY": json.dumps(live_scores)}
+    virt = json.loads(subprocess.run(["node", str(REPO_DIR / "bereken_stand.js")],
+                                     cwd=REPO_DIR, capture_output=True, text=True,
+                                     check=True, env=env).stdout)
+    virtuele_stand = [{"rang": s["rank"], "naam": s["naam"],
+                       "officieel": officieel.get(s["naam"]), "virtueel": s["totaal"],
+                       "delta": s["totaal"] - officieel.get(s["naam"], s["totaal"])}
+                      for s in virt]
+
+    return json.dumps({"live": True, "wedstrijden": wedstrijden,
+                       "virtuele_stand": virtuele_stand}, ensure_ascii=False)
+
+
+# Overzicht van alle voorspellingen per categorie (voor "wie voorspelde welke X").
+_VOORSPELLINGEN_JS = """
+const d=require('./data.js');
+const cat={kampioen:'champion',finalist:'finalist_predicted',verrassing:'surprise',
+  deceptie:'deception',topscorer:'topscorer',topscorer_goals:'topscorerGoals',
+  totaal_goals:'totalGoals',gele_kaarten:'yellow',rode_kaarten:'red'};
+const prematch={};
+for(const[nl,key]of Object.entries(cat)){
+  prematch[nl]={};
+  for(const n of d.DEELNEMERS){
+    const v=(d.VOORSPELLINGEN[n].prematch||{})[key];
+    if(v!==''&&v!=null) prematch[nl][n]=v;
+  }
+}
+const groepswinnaars={},beste_nrs3={};
+for(const n of d.DEELNEMERS){
+  groepswinnaars[n]=d.VOORSPELLINGEN[n].top2||{};
+  beste_nrs3[n]=(d.VOORSPELLINGEN[n].best3||[]).filter(Boolean);
+}
+console.log(JSON.stringify({prematch,groepswinnaars_runnerup:groepswinnaars,beste_nummers_3:beste_nrs3}));
+"""
+
+
+def run_voorspellingen() -> str:
+    try:
+        return subprocess.run(["node", "-e", _VOORSPELLINGEN_JS],
+                              cwd=REPO_DIR, capture_output=True, text=True,
+                              check=True).stdout.strip()
+    except Exception as e:
+        log.error(f"run_voorspellingen mislukt: {e}")
+        return json.dumps({"fout": "kon voorspellingen niet ophalen"}, ensure_ascii=False)
+
+
+_TEAMS_CACHE: dict | None = None
+
+
+def _group_match_teams() -> dict:
+    """Teamnamen per matchId (A1 → {home, away}) uit GROUP_MATCHES in data.js."""
+    global _TEAMS_CACHE
+    if _TEAMS_CACHE is None:
+        result = subprocess.run(
+            ["node", "-e",
+             "const d=require('./data.js');console.log(JSON.stringify(d.GROUP_MATCHES))"],
+            cwd=REPO_DIR, capture_output=True, text=True, check=True,
+        )
+        _TEAMS_CACHE = {m["id"]: m for m in json.loads(result.stdout)}
+    return _TEAMS_CACHE
+
+
+def _wedstrijden_dag(dag: str = "vandaag") -> str:
+    """Wedstrijden van één speeldag: 12:00 's middags t/m 11:59 de volgende ochtend (NL)."""
+    vandaag = date.today()
+    dag = (dag or "vandaag").strip().lower()
+    if dag in ("", "vandaag", "vanavond", "vannacht"):
+        doel = vandaag
+    elif dag == "morgen":
+        doel = vandaag + timedelta(days=1)
+    elif dag == "gisteren":
+        doel = vandaag - timedelta(days=1)
+    else:
+        try:
+            doel = date.fromisoformat(dag)
+        except ValueError:
+            return json.dumps({"error": f"Onbekende dag '{dag}', gebruik vandaag/morgen/gisteren of YYYY-MM-DD"})
+
+    start = datetime.combine(doel, datetime.min.time()).replace(hour=12)
+    eind  = start + timedelta(hours=24)
+    sch   = json.loads(SCHEDULE_FILE.read_text())
+    teams = _group_match_teams()
+
+    wedstrijden = []
+    for mid, info in sch.get("groepsfase", {}).items():
+        dt = datetime.fromisoformat(f"{info['datum']} {info['tijd']}")
+        if start <= dt < eind:
+            t = teams.get(mid, {})
+            wedstrijden.append({
+                "matchId": mid, "nr": info["nr"],
+                "thuis": t.get("home", "?"), "uit": t.get("away", "?"),
+                "datum": info["datum"], "tijd": info["tijd"],
+                "vannacht": dt.date() != doel,
+                "stad": info["stad"], "stadion": info["stadion"],
+                "_dt": dt.isoformat(),
+            })
+    for ronde, matches in sch.get("knockout", {}).items():
+        for info in matches:
+            dt = datetime.fromisoformat(f"{info['datum']} {info['tijd']}")
+            if start <= dt < eind:
+                wedstrijden.append({
+                    "matchId": f"#{info['nr']}", "nr": info["nr"], "ronde": ronde,
+                    "thuis": "nog onbekend", "uit": "nog onbekend",
+                    "datum": info["datum"], "tijd": info["tijd"],
+                    "vannacht": dt.date() != doel,
+                    "stad": info["stad"], "stadion": info["stadion"],
+                    "_dt": dt.isoformat(),
+                })
+    wedstrijden.sort(key=lambda w: w.pop("_dt"))
+    return json.dumps({
+        "speeldag": str(doel),
+        "uitleg": "speeldag = 12:00 's middags t/m de volgende ochtend; vannacht=true is na middernacht NL-tijd",
+        "wedstrijden": wedstrijden,
+    }, ensure_ascii=False)
+
+
+def _match_voorspellingen(match_id: str) -> str:
+    """Voorspellingen per deelnemer voor één groepswedstrijd (via prewedstrijd.js)."""
+    match_id = (match_id or "").strip().upper()
+    if not re.fullmatch(r"[A-L][1-6]", match_id):
+        return json.dumps({"error": f"Ongeldig matchId '{match_id}', verwacht bijv. 'A1' of 'F4'"})
+    result = subprocess.run(
+        ["node", str(REPO_DIR / "prewedstrijd.js"), match_id],
+        cwd=REPO_DIR, capture_output=True, text=True,
+    )
+    return result.stdout.strip() or json.dumps({"error": "geen output"})
+
+
+def _geheugen_lees(max_n: int = 30) -> list:
+    if GEHEUGEN_FILE.exists():
+        try:
+            return json.loads(GEHEUGEN_FILE.read_text())[-max_n:]
+        except Exception as e:
+            log.error(f"Geheugen lezen mislukt: {e}")
+    return []
+
+
+def _geheugen_schrijf(notitie: str) -> str:
+    notitie = (notitie or "").strip()
+    if not notitie:
+        return "Lege notitie, niks onthouden."
+    data = []
+    if GEHEUGEN_FILE.exists():
+        try:
+            data = json.loads(GEHEUGEN_FILE.read_text())
+        except Exception:
+            data = []
+    data.append({"datum": str(date.today()), "notitie": notitie[:300]})
+    GEHEUGEN_FILE.write_text(json.dumps(data[-150:], ensure_ascii=False, indent=1))
+    return "Onthouden."
+
+
 def run_tool(name: str, tool_input: dict, allow_write: bool = False) -> str:
     if name == "get_tournament_stats":
         return run_tournament_stats(tool_input.get("datum", str(date.today())))
@@ -350,6 +778,21 @@ def run_tool(name: str, tool_input: dict, allow_write: bool = False) -> str:
 
     if name == "get_data":
         return DATA_JS.read_text()
+
+    if name == "get_live":
+        return run_live()
+
+    if name == "get_voorspellingen":
+        return run_voorspellingen()
+
+    if name == "get_wedstrijden_dag":
+        return _wedstrijden_dag(tool_input.get("dag", "vandaag"))
+
+    if name == "get_match_voorspellingen":
+        return _match_voorspellingen(tool_input.get("matchId", ""))
+
+    if name == "onthoud":
+        return _geheugen_schrijf(tool_input.get("notitie", ""))
 
     if name == "fetch_url":
         url = tool_input.get("url", "")
@@ -445,6 +888,130 @@ def _call_claude(system: str, messages: list, tools: list,
     return ""
 
 
+def _venice_tools(tools: list) -> list:
+    """Converteer Anthropic-stijl tooldefinities naar OpenAI-formaat (Venice API)."""
+    return [{
+        "type": "function",
+        "function": {
+            "name": t["name"],
+            "description": t.get("description", ""),
+            "parameters": t["input_schema"],
+        },
+    } for t in tools]
+
+
+def _call_venice(system: str, messages: list, tools: list,
+                 max_tokens: int = VENICE_MAX_TOKENS, allow_write: bool = False,
+                 timeout: int = 120) -> str:
+    """Chat-call via Venice AI (OpenAI-compatibel, model Kimi K2) met tool-loop en web search.
+
+    Verwacht messages in het simpele formaat [{"role": "user", "content": "<tekst>"}].
+    Kimi redeneert intern (reasoning_content) vóór het antwoord; dat kost output-tokens
+    maar wordt niet getoond. Web search doet Venice server-side (enable_web_search=auto).
+    """
+    oai_messages = [{"role": "system", "content": system}]
+    for m in messages:
+        if isinstance(m.get("content"), str):
+            oai_messages.append({"role": m["role"], "content": m["content"]})
+
+    venice_tools = _venice_tools(tools)
+    for _ in range(12):  # max tool-rondes, tegen eindeloze loops
+        body = {
+            "model": VENICE_MODEL,
+            "max_completion_tokens": max_tokens,
+            "messages": oai_messages,
+            "tools": venice_tools,
+            "venice_parameters": {
+                "enable_web_search": "auto",
+                # Venice injecteert standaard een eigen system prompt; uitzetten zodat
+                # Kees Kees blijft.
+                "include_venice_system_prompt": False,
+            },
+        }
+        req = urllib.request.Request(
+            VENICE_BASE_URL,
+            data=json.dumps(body).encode(),
+            headers={"Authorization": f"Bearer {VENICE_API_KEY}",
+                     "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            resp = json.load(r)
+
+        msg = resp["choices"][0]["message"]
+        tool_calls = msg.get("tool_calls") or []
+        if tool_calls:
+            # reasoning_content niet mee terugsturen: scheelt tokens en is niet nodig
+            oai_messages.append({"role": "assistant",
+                                 "content": msg.get("content") or "",
+                                 "tool_calls": tool_calls})
+            for tc in tool_calls:
+                fn = tc["function"]["name"]
+                try:
+                    args = json.loads(tc["function"].get("arguments") or "{}")
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
+                result = run_tool(fn, args, allow_write=allow_write)
+                log.info(f"Tool (venice) {fn}: {str(result)[:80]}")
+                oai_messages.append({"role": "tool",
+                                     "tool_call_id": tc["id"],
+                                     "content": str(result)})
+            continue
+        return (msg.get("content") or "").strip()
+    log.warning("Venice: max tool-rondes bereikt zonder eindantwoord.")
+    return ""
+
+
+def _call_chat_llm(system: str, messages: list, tools: list) -> str:
+    """Chat-dispatcher: Venice/Kimi als primaire backend, Claude Haiku als fallback.
+
+    Alleen voor de chat — de dagelijkse update (write-tools) blijft op Claude draaien.
+    """
+    if CHAT_BACKEND == "venice" and VENICE_API_KEY:
+        try:
+            return _call_venice(system, messages, tools)
+        except Exception as e:
+            log.error(f"Venice mislukt ({e}) — fallback naar Claude Haiku.")
+    return _call_claude(system=system, messages=messages, tools=tools,
+                        model="claude-haiku-4-5-20251001", max_tokens=300)
+
+
+def _call_update_llm(system: str, messages: list, tools: list) -> str:
+    """Daily-update-dispatcher: Kimi via Venice, met Claude Sonnet als fallback.
+
+    De update schrijft data.js in z'n geheel via write_data (~15k tokens in één
+    tool-call), dus het token-budget staat ruim. valideer_data.js + rollback
+    beschermen tegen een corrupte write, git_push valideert nogmaals.
+    """
+    if UPDATE_BACKEND == "venice" and VENICE_API_KEY:
+        try:
+            # Ruime timeout: het terugschrijven van data.js (~15k tokens) duurt minuten.
+            return _call_venice(system, messages, tools,
+                                max_tokens=32000, allow_write=True, timeout=600)
+        except Exception as e:
+            log.error(f"Venice (daily update) mislukt ({e}) — fallback naar Claude Sonnet.")
+    return _call_claude(system=system, messages=messages, tools=tools,
+                        model="claude-sonnet-4-6", max_tokens=1500, allow_write=True)
+
+
+_NL_DAGEN   = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"]
+_NL_MAANDEN = ["januari", "februari", "maart", "april", "mei", "juni",
+               "juli", "augustus", "september", "oktober", "november", "december"]
+
+
+def _datum_regel() -> str:
+    nu = datetime.now()
+    return (f"Het is nu {_NL_DAGEN[nu.weekday()]} {nu.day} {_NL_MAANDEN[nu.month - 1]} "
+            f"{nu.year}, {nu:%H:%M} (NL-tijd).")
+
+
+def _geheugen_blok() -> str:
+    notities = _geheugen_lees()
+    if not notities:
+        return ""
+    regels = "\n".join(f"- [{n['datum']}] {n['notitie']}" for n in notities)
+    return f"\n\nJe notities (langetermijngeheugen):\n{regels}"
+
+
 def ai_kees_reply(naam: str, tekst: str, chat_history: list, is_floris: bool,
                   mag_zwijgen: bool = False) -> str:
     context = "\n".join(chat_history) if chat_history else "(nog geen eerdere berichten)"
@@ -476,12 +1043,12 @@ def ai_kees_reply(naam: str, tekst: str, chat_history: list, is_floris: bool,
             f"niet alsof je het gesprek eromheen niet ziet."
         )
 
-    antwoord = _call_claude(
+    context_regel = f"{_datum_regel()}{_geheugen_blok()}\n\n{context_regel}"
+
+    antwoord = _call_chat_llm(
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": context_regel}],
         tools=CHAT_TOOLS,
-        model="claude-haiku-4-5-20251001",
-        max_tokens=300,
     )
     if mag_zwijgen and antwoord.strip().lower().strip("[].!*").startswith("stil"):
         return ""
@@ -621,12 +1188,10 @@ def ai_kees_versie_update() -> str:
         f"opvallendste dingen. Heel bondig en sassy, geen complete opsomming, geen gelul. "
         f"Wat er nieuw is (kies de highlights, niet alles): {notitie}"
     )
-    return _call_claude(
+    return _call_chat_llm(
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": prompt}],
         tools=[],
-        model="claude-haiku-4-5-20251001",
-        max_tokens=200,
     )
 
 
@@ -750,15 +1315,12 @@ SPEELRONDE-PUNTEN (groepswedstrijden, alleen al gespeelde wedstrijden tellen mee
 
 Geef alleen het Telegram-bericht terug als eindantwoord."""
 
-    return _call_claude(
+    return _call_update_llm(
         system=system,
         messages=[{"role": "user", "content":
                    f"Doe de dagelijkse stand-update voor Tempetoto. Het is nu {vandaag}, "
                    f"{nu.strftime('%H:%M')} uur Nederlandse tijd."}],
         tools=UPDATE_TOOLS,
-        model="claude-sonnet-4-6",
-        max_tokens=1500,
-        allow_write=True,
     )
 
 
@@ -943,6 +1505,114 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         log.error(f"Fout bij antwoord: {e}")
+
+
+# ── /stand: deterministische stand-berekening (geen LLM, read-only) ─────────────
+# Veilig tegen misbruik: dit pad raakt de LLM nóóit aan en schrijft niets.
+# Het haalt verse uitslagen uit de football API en draait bereken_stand.js.
+# Niemand in de groep kan hiermee data laten aanpassen — alleen een berekening triggeren.
+
+def _verse_overlay(include_live: bool) -> tuple[dict, dict]:
+    """Haalt verse groepsuitslagen uit de football API. Read-only: schrijft niets
+    naar data.js. include_live=False → alleen afgelopen (FT) wedstrijden; True →
+    ook lopende wedstrijden. Geeft (overlay_scores, meta) terug."""
+    by_pair = _group_match_pairs()
+    overlay, meta = {}, {}
+    for d in (date.today(), date.today() - timedelta(days=1)):
+        data = _football_api("fixtures", {"league": WC_LEAGUE_ID,
+                                          "season": WC_SEASON, "date": str(d)})
+        for f in data.get("response", []):
+            status = f["fixture"]["status"]["short"]
+            is_live = status in LIVE_STATUSES
+            if not (status == "FT" or (include_live and is_live)):
+                continue
+            home = EN_TO_NL.get(f["teams"]["home"]["name"])
+            away = EN_TO_NL.get(f["teams"]["away"]["name"])
+            paar = by_pair.get((home, away))
+            gh, ga = f["goals"]["home"], f["goals"]["away"]
+            if not paar or gh is None:
+                continue  # KO-wedstrijd, onbekend team of nog geen score
+            mid, flip = paar
+            overlay[mid] = f"{ga}-{gh}" if flip else f"{gh}-{ga}"
+            meta[mid] = {"thuis": home, "uit": away, "live": is_live}
+    return overlay, meta
+
+
+def _bouw_stand_bericht(include_live: bool) -> str:
+    """Bouwt het stand-bericht. Volledig deterministisch: officiële stand uit
+    bereken_stand.js, met een verse API-overlay erbovenop. Schrijft niets.
+    include_live bepaalt /stand (alleen afgelopen) vs /virtuelestand (ook live)."""
+    officieel = {s["naam"]: s["totaal"] for s in _stand()}
+
+    overlay, meta = {}, {}
+    if FOOTBALL_API_KEY:
+        try:
+            overlay, meta = _verse_overlay(include_live)
+        except Exception as e:
+            log.error(f"stand overlay-fout (val terug op officiële stand): {e}")
+
+    if overlay:
+        env = {**os.environ, "STAND_OVERLAY": json.dumps(overlay)}
+        stand = json.loads(subprocess.run(
+            ["node", str(REPO_DIR / "bereken_stand.js")],
+            cwd=REPO_DIR, capture_output=True, text=True, check=True, env=env).stdout)
+    else:
+        stand = _stand()
+
+    live = [m for m in meta.values() if m["live"]]
+    titel = "🏴‍☠️ <b>Virtuele tussenstand — LIVE</b>" if include_live and live \
+        else "🏆 <b>Tussenstand Tempetoto</b>"
+    # Hele tabel in één monospace-codeblok (<pre>) zodat Telegram de kolommen uitlijnt.
+    # De piraat-vlag staat aan het regeleinde en verstoort de kolommen ervóór niet.
+    rijen = []
+    for s in stand:
+        naam  = s["naam"]
+        delta = s["totaal"] - officieel.get(naam, s["totaal"])
+        d_str = f" (+{delta})" if delta else ""
+        piraat = "  🏴‍☠️" if naam == "AI Kees" else ""
+        rijen.append(f"{s['rank']:>2}. {naam:<11}{s['totaal']:>3}{d_str}{piraat}")
+    delen = [titel, "<pre>" + html.escape("\n".join(rijen)) + "</pre>"]
+    if include_live:
+        if live:
+            wedstrijden = ", ".join(f"{m['thuis']}-{m['uit']}" for m in live)
+            delen.append(f"⚽ Live verrekend: {html.escape(wedstrijden)}")
+        else:
+            delen.append("<i>(geen wedstrijd live — gelijk aan de gewone stand)</i>")
+    return "\n".join(delen)
+
+
+async def _post_stand(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                      include_live: bool, label: str):
+    """Gedeeld pad voor /stand en /virtuelestand. Gaat NIET via de LLM en kan
+    niets wijzigen: enkel berekenen (verse API-call) + posten."""
+    msg = update.message
+    if not msg or msg.chat_id != CHAT_ID:
+        return
+    naam = msg.from_user.first_name if msg.from_user else "iemand"
+    log.info(f"{label} getriggerd door {naam}")
+    loop = asyncio.get_event_loop()
+    stop_event = asyncio.Event()
+    typing_task = asyncio.create_task(keep_typing(context.bot, msg.chat_id, stop_event))
+    try:
+        bericht = await loop.run_in_executor(None, _bouw_stand_bericht, include_live)
+    except Exception as e:
+        log.error(f"{label} fout: {e}")
+        bericht = "Kon de stand even niet berekenen — de football API gaf niet thuis. Probeer zo nog eens."
+    finally:
+        stop_event.set()
+        await typing_task
+    await msg.reply_text(bericht, parse_mode="HTML")
+    log.info(f"{label} gepost:\n{bericht}")
+
+
+async def cmd_stand(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/stand — kale stand met alleen afgelopen wedstrijden (verse API-uitslagen)."""
+    await _post_stand(update, context, include_live=False, label="/stand")
+
+
+async def cmd_virtuelestand(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/virtuelestand — stand inclusief live overlay van lopende wedstrijden."""
+    await _post_stand(update, context, include_live=True, label="/virtuelestand")
 
 
 # ── Pre-match preview ─────────────────────────────────────────────────────────
@@ -1258,12 +1928,10 @@ async def meld_ronde_winnaar():
                     f"Kroon de winnaar als AI Kees in één droog bericht voor de groep (max 3 zinnen), "
                     f"met die 🏆 erin. Ben jij het zelf, geniet er dan van; is het Smit, "
                     f"dan weet je hoe zuinig je het brengt.")
-        reply = _call_claude(
+        reply = _call_chat_llm(
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": opdracht}],
             tools=CHAT_TOOLS,
-            model="claude-haiku-4-5-20251001",
-            max_tokens=300,
         )
         if reply:
             await Bot(token=BOT_TOKEN).send_message(chat_id=CHAT_ID, text=reply)
@@ -1306,12 +1974,10 @@ async def meld_dode_kampioenen():
                 f"Maak hier als AI Kees één droog condoleance-bericht over voor de groep (max 3 zinnen). "
                 f"Zit je eigen kampioen erbij, dan draag je het stoïcijns; zit die van Smit erbij, "
                 f"dan weet je wat je te doen staat.")
-    reply = _call_claude(
+    reply = _call_chat_llm(
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": opdracht}],
         tools=CHAT_TOOLS,
-        model="claude-haiku-4-5-20251001",
-        max_tokens=300,
     )
     if reply:
         await Bot(token=BOT_TOKEN).send_message(chat_id=CHAT_ID, text=reply)
@@ -1331,13 +1997,7 @@ async def run_check_uitslagen():
         log.info("Check uitslagen: niets te checken.")
         return
 
-    matches = json.loads(subprocess.run(
-        ["node", "-e", "console.log(JSON.stringify(require('./data.js').GROUP_MATCHES))"],
-        cwd=REPO_DIR, capture_output=True, text=True, check=True).stdout)
-    by_pair = {}
-    for m in matches:
-        by_pair[(m["home"], m["away"])] = (m["id"], False)
-        by_pair[(m["away"], m["home"])] = (m["id"], True)
+    by_pair = _group_match_pairs()
 
     bestaand = _lees_group_uitslagen()
     nieuwe = {}
@@ -1391,12 +2051,10 @@ async def run_check_uitslagen():
     if recap and BOT_TOKEN and API_KEY:
         opdracht = _recap_opdracht(recap, oude_stand, nieuwe_stand,
                                    oude_leiders, nieuwe_leiders)
-        reply = _call_claude(
+        reply = _call_chat_llm(
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": opdracht}],
             tools=[],
-            model="claude-haiku-4-5-20251001",
-            max_tokens=300,
         )
         if reply:
             await Bot(token=BOT_TOKEN).send_message(chat_id=CHAT_ID, text=reply)
@@ -1442,8 +2100,10 @@ def main():
 
     app = (Application.builder().token(BOT_TOKEN).concurrent_updates(True)
            .post_init(announce_versie).build())
+    app.add_handler(CommandHandler("stand", cmd_stand, filters=filters.Chat(CHAT_ID)))
+    app.add_handler(CommandHandler("virtuelestand", cmd_virtuelestand, filters=filters.Chat(CHAT_ID)))
     app.add_handler(MessageHandler(
-        filters.TEXT & filters.Chat(CHAT_ID),
+        filters.TEXT & ~filters.COMMAND & filters.Chat(CHAT_ID),
         handle_message,
     ))
     log.info(f"AI Kees v{VERSIE} is online — wacht op berichten")
