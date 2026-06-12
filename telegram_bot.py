@@ -82,7 +82,7 @@ CHAT_BACKEND     = os.getenv('KEES_CHAT_BACKEND', 'venice')
 UPDATE_BACKEND   = os.getenv('KEES_UPDATE_BACKEND', 'venice')
 # Kimi is een redeneer-model: het denkt eerst (onzichtbaar) en antwoordt dan pas,
 # dus het token-budget moet ruim boven de zichtbare antwoordlengte liggen.
-VENICE_MAX_TOKENS = 2000
+VENICE_MAX_TOKENS = 4000
 REPO_DIR         = Path(__file__).parent
 DATA_JS          = REPO_DIR / 'data.js'
 POSTED_FILE      = REPO_DIR / 'geposte_updates.json'
@@ -902,7 +902,7 @@ def _venice_tools(tools: list) -> list:
 
 def _call_venice(system: str, messages: list, tools: list,
                  max_tokens: int = VENICE_MAX_TOKENS, allow_write: bool = False,
-                 timeout: int = 120) -> str:
+                 timeout: int = 180) -> str:
     """Chat-call via Venice AI (OpenAI-compatibel, model Kimi K2) met tool-loop en web search.
 
     Verwacht messages in het simpele formaat [{"role": "user", "content": "<tekst>"}].
@@ -936,6 +936,11 @@ def _call_venice(system: str, messages: list, tools: list,
         )
         with urllib.request.urlopen(req, timeout=timeout) as r:
             resp = json.load(r)
+
+        if "error" in resp:
+            raise RuntimeError(f"Venice API error: {resp['error']}")
+        if "choices" not in resp:
+            raise RuntimeError("Venice API response missing 'choices'")
 
         msg = resp["choices"][0]["message"]
         tool_calls = msg.get("tool_calls") or []
