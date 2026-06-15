@@ -734,7 +734,8 @@ function statsRows(){
   // statistiek een staafdiagram van ieders voorspelling met een prognose-lijn;
   // 🏆 = dichtst bij de prognose. Deze punten tellen pas mee aan het eind.
   const feiten=UITSLAGEN.facts;
-  const aantalGespeeld=Object.keys(UITSLAGEN.group).length;
+  const koGespeeld=KO_ROUNDS.reduce((s,r)=>s+((UITSLAGEN.ko.results[r.key]||[]).filter(x=>x!=null).length),0);
+  const aantalGespeeld=Object.keys(UITSLAGEN.group).length+koGespeeld;
   const TOTAAL_WEDSTRIJDEN=104; // WK 2026: 72 groeps + 32 KO
   const projecteer=v=>(aantalGespeeld>0&&v!=null)?Math.round(v/aantalGespeeld*TOTAAL_WEDSTRIJDEN):null;
   const staafChart=(icon,label,veld,huidig)=>{

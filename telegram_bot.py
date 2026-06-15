@@ -34,7 +34,7 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, C
 
 load_dotenv(Path(__file__).parent / '.env')
 
-VERSIE           = "3.02"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
+VERSIE           = "3.03"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
 # Korte changelog per versie. Bij een nieuwe versie kondigt Kees dit beknopt aan in de groep
 # (1x per versie, bij opstart). Geen notitie = geen aankondiging.
 VERSIE_NOTITIES  = {
@@ -76,6 +76,12 @@ VERSIE_NOTITIES  = {
             "verlopen abonnement (declaratie ligt bij floris), dat is verlengd. en mocht het "
             "ooit nog haperen, dan neemt m'n reservebrein het nu wél gewoon over in plaats "
             "van zwijgen. ik val dus niet meer stil. jammer voor jullie.",
+    "3.03": "drie nieuwe commando's: /totaalgoals, /gelekaarten en /rodekaarten. ik geef het "
+            "huidige aantal, de prognose als deze trend doorzet, en wie van jullie er met z'n "
+            "voorspelling het dichtst bij zit. diezelfde info staat nu ook op de site onder Stats "
+            "('wie ligt op koers', met staafjes). en voor de duidelijkheid: die seizoensgokken "
+            "(goals/kaarten/topscorer) tellen pas mee in de stand als het toernooi erop zit — geen "
+            "punten meer cadeau op basis van halve cijfers. ik reken pas af als de finale gefloten is.",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
@@ -1647,6 +1653,78 @@ async def cmd_virtuelestand(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _post_stand(update, context, include_live=True, label="/virtuelestand")
 
 
+# ── Seizoensstatistieken op aanvraag (/totaalgoals /gelekaarten /rodekaarten) ──
+
+def _seizoens_data(veld: str) -> dict:
+    """Huidig aantal van een seizoensstatistiek + prognose + ieders voorspelling,
+    via node (zelfde data/berekening als de site)."""
+    out = subprocess.run(
+        ["node", "-e",
+         "const d=require('./data.js');const f=d.UITSLAGEN.facts;const veld=process.argv[1];"
+         "const huidig=f[veld];"
+         "const koG=d.KO_ROUNDS.reduce((s,r)=>s+((d.UITSLAGEN.ko.results[r.key]||[]).filter(x=>x!=null).length),0);"
+         "const gespeeld=Object.keys(d.UITSLAGEN.group).length+koG;"
+         "const prognose=(gespeeld>0&&huidig!=null)?Math.round(huidig/gespeeld*104):null;"
+         "const vs=d.DEELNEMERS.map(n=>({n,val:Number((d.VOORSPELLINGEN[n]||{}).prematch?d.VOORSPELLINGEN[n].prematch[veld]:NaN)})).filter(x=>!isNaN(x.val));"
+         "process.stdout.write(JSON.stringify({huidig,prognose,vs}));",
+         veld],
+        cwd=str(REPO_DIR), capture_output=True, text=True)
+    return json.loads(out.stdout)
+
+
+def _bouw_seizoensstat_bericht(veld: str, icon: str, label: str) -> str:
+    d = _seizoens_data(veld)
+    huidig, prognose, vs = d.get("huidig"), d.get("prognose"), d.get("vs", [])
+    if prognose is None or not vs:
+        return f"{icon} <b>{label}</b>\nNog geen data of voorspellingen beschikbaar."
+    vs.sort(key=lambda x: abs(x["val"] - prognose))
+    rijen = []
+    for i, x in enumerate(vs, 1):
+        diff = abs(x["val"] - prognose)
+        trofee = "  \U0001F3C6" if i == 1 else ""
+        piraat = " \U0001F3F4‍☠️" if x["n"] == "AI Kees" else ""
+        rijen.append(f"{i:>2}. {x['n']:<11}{x['val']:>4}  Δ{diff}{trofee}{piraat}")
+    kop = (f"{icon} <b>{label}</b>\n"
+           f"Huidig: {huidig}  ·  prognose (bij deze trend): {prognose}")
+    staart = "\n\nWie ligt op koers (voorspelling · afstand tot prognose):\n"
+    return kop + staart + "<pre>" + html.escape("\n".join(rijen)) + "</pre>"
+
+
+async def _post_seizoensstat(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                             veld: str, icon: str, label: str):
+    """Read-only: berekent + post een seizoensstatistiek. Gaat niet via de LLM."""
+    msg = update.message
+    if not msg or msg.chat_id != CHAT_ID:
+        return
+    naam = msg.from_user.first_name if msg.from_user else "iemand"
+    log.info(f"/{label} getriggerd door {naam}")
+    loop = asyncio.get_event_loop()
+    stop_event = asyncio.Event()
+    typing_task = asyncio.create_task(keep_typing(context.bot, msg.chat_id, stop_event))
+    try:
+        bericht = await loop.run_in_executor(None, _bouw_seizoensstat_bericht, veld, icon, label)
+    except Exception as e:
+        log.error(f"Seizoensstat '{label}' fout: {e}")
+        bericht = "Kon de statistiek even niet ophalen. Probeer zo nog eens."
+    finally:
+        stop_event.set()
+        await typing_task
+    await msg.reply_text(bericht, parse_mode="HTML")
+    log.info(f"Seizoensstat '{label}' gepost.")
+
+
+async def cmd_totaalgoals(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _post_seizoensstat(update, context, "totalGoals", "⚽", "Totaal goals")
+
+
+async def cmd_gelekaarten(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _post_seizoensstat(update, context, "yellow", "\U0001F7E8", "Gele kaarten")
+
+
+async def cmd_rodekaarten(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _post_seizoensstat(update, context, "red", "\U0001F7E5", "Rode kaarten")
+
+
 # ── Pre-match preview ─────────────────────────────────────────────────────────
 
 _TZ = ZoneInfo("Europe/Amsterdam")
@@ -1844,9 +1922,14 @@ def _wedstrijd_kaarten(fid: int) -> tuple[int, int]:
 def _api_topscorers() -> tuple[list[str], int | None]:
     data = _football_api("players/topscorers",
                          {"league": WC_LEAGUE_ID, "season": WC_SEASON})
+    entries = data.get("response", [])
+    if not entries:
+        # Lege respons is vrijwel altijd een tijdelijke hapering (rate-limit). Niet
+        # met lege topscorers de goede overschrijven — laat de caller overslaan.
+        raise RuntimeError("players/topscorers gaf een lege respons")
     voorspeld = _voorspelde_topscorers()
     namen, topgoals = [], None
-    for entry in data.get("response", [])[:3]:
+    for entry in entries[:3]:
         g = entry["statistics"][0]["goals"]["total"] or 0
         namen.append(_normaliseer_topscorer(entry["player"]["name"], voorspeld))
         if topgoals is None:
@@ -1856,28 +1939,27 @@ def _api_topscorers() -> tuple[list[str], int | None]:
     return namen, topgoals
 
 
-def _totaal_goals() -> int:
-    tot = 0
-    for v in _lees_group_uitslagen().values():
-        if "-" in v:
-            a, b = v.split("-", 1)
-            if a.strip().isdigit() and b.strip().isdigit():
-                tot += int(a) + int(b)
-    return tot
+FACTS_STATE_FILE = REPO_DIR / "facts_state.json"  # lokale runtime-state (niet in git)
 
 
-def _lees_facts() -> dict:
-    m = re.search(r'facts:\{([^}]*)\}', DATA_JS.read_text())
-    body = m.group(1) if m else ""
-    def num(veld):
-        g = re.search(rf'{veld}:\s*([0-9]+)', body)
-        return int(g.group(1)) if g else None
-    return {"yellow": num("yellow"), "red": num("red")}
+def _facts_state() -> dict:
+    """Bijgehouden tussenstand voor de kaart-aggregatie: welke fixtures al geteld
+    zijn (zodat niets dubbel telt) + de lopende geel/rood-totalen."""
+    try:
+        return json.loads(FACTS_STATE_FILE.read_text())
+    except Exception:
+        return {"counted": [], "geel": 0, "rood": 0}
+
+
+def _save_facts_state(st: dict) -> None:
+    FACTS_STATE_FILE.write_text(json.dumps(st))
 
 
 def _schrijf_facts(total_goals: int, yellow: int, red: int,
-                   topscorers: list[str], topscorer_goals: int | None) -> str | None:
-    """Schrijft de display-/scorefacts in UITSLAGEN.facts; valideert + rollback."""
+                   topscorers: list[str], topscorer_goals: int | None,
+                   compleet: bool | None = None) -> str | None:
+    """Schrijft de display-/scorefacts in UITSLAGEN.facts; valideert + rollback.
+    compleet=True/False zet de scoring-vlag (seizoensgokken tellen pas bij True)."""
     src = DATA_JS.read_text()
     m = re.search(r'(facts:\{)([^}]*)(\})', src)
     if not m:
@@ -1890,6 +1972,12 @@ def _schrijf_facts(total_goals: int, yellow: int, red: int,
     body = re.sub(r'(totalGoals:)\s*[^,}]+', lambda _: f'totalGoals:{total_goals}', body)
     body = re.sub(r'(yellow:)\s*[^,}]+', lambda _: f'yellow:{yellow}', body)
     body = re.sub(r'(red:)\s*[^,}]+', lambda _: f'red:{red}', body)
+    if compleet is not None:
+        cv = "true" if compleet else "false"
+        if re.search(r'compleet:\s*(true|false)', body):
+            body = re.sub(r'(compleet:)\s*(true|false)', lambda _: f'compleet:{cv}', body)
+        else:
+            body = f"compleet:{cv}, " + body.lstrip()
     DATA_JS.write_text(src[:m.start(2)] + body + src[m.end(2):])
     validatie = subprocess.run(["node", str(REPO_DIR / "valideer_data.js")],
                                capture_output=True, text=True)
@@ -1899,30 +1987,71 @@ def _schrijf_facts(total_goals: int, yellow: int, red: int,
     return None
 
 
-def _update_facts(nieuwe_fids: dict) -> None:
-    """Werkt UITSLAGEN.facts bij na nieuwe uitslagen. Best-effort: een API-storing
-    mag de (al verwerkte) uitslagen niet blokkeren — loggen en doorgaan."""
-    huidig = _lees_facts()
-    geel = huidig.get("yellow") or 0
-    rood = huidig.get("red") or 0
-    for fid in nieuwe_fids.values():
+_KLAAR_STATUS = ("FT", "AET", "PEN")  # afgelopen wedstrijd (incl. verlenging/penalty's)
+
+
+def _toernooi_compleet(fixtures: list) -> bool:
+    """Toernooi voorbij = de finale is gespeeld, of alle 104 WK-wedstrijden zijn af.
+    (De API kent KO-fixtures pas zodra de teams bekend zijn, dus niet op aantal alleen.)"""
+    klaar = lambda f: f["fixture"]["status"]["short"] in _KLAAR_STATUS
+    finale = any(klaar(f) and f["league"].get("round", "") == "Final" for f in fixtures)
+    return finale or sum(1 for f in fixtures if klaar(f)) >= 104
+
+
+def _ververs_facts() -> bool:
+    """Werkt UITSLAGEN.facts bij uit de football API — groep én KO. Totaal goals
+    (som over alle afgelopen wedstrijden), kaarten (per nog niet getelde wedstrijd,
+    via counted-set tegen dubbeltellen + rate-limits) en topscorers. Zet
+    facts.compleet=true zodra de finale gespeeld is, zodat de seizoensgokken tellen.
+    Best-effort: API-storing → loggen en doorgaan."""
+    try:
+        data = _football_api("fixtures", {"league": WC_LEAGUE_ID, "season": WC_SEASON})
+    except Exception as e:
+        log.error(f"Facts verversen: fixtures ophalen mislukt: {e}")
+        return False
+    alle = data.get("response", [])
+    ft = [f for f in alle if f["fixture"]["status"]["short"] in _KLAAR_STATUS]
+    if not ft:
+        return False
+    goals = sum((f["goals"]["home"] or 0) + (f["goals"]["away"] or 0) for f in ft)
+    st = _facts_state()
+    counted = set(st.get("counted", []))
+    geel, rood = st.get("geel", 0), st.get("rood", 0)
+    for f in ft:
+        fid = f["fixture"]["id"]
+        if fid in counted:
+            continue
         try:
             g, r = _wedstrijd_kaarten(fid)
             geel += g
             rood += r
+            counted.add(fid)
         except Exception as e:
             log.error(f"Kaarten ophalen mislukt (fixture {fid}): {e}")
+    _save_facts_state({"counted": sorted(counted), "geel": geel, "rood": rood})
     try:
         topscorers, topgoals = _api_topscorers()
     except Exception as e:
         log.error(f"Topscorers ophalen mislukt: {e}")
-        return  # zonder topscorers niet half-schrijven; volgende wedstrijd opnieuw
-    fout = _schrijf_facts(_totaal_goals(), geel, rood, topscorers, topgoals)
+        return False
+    compleet = _toernooi_compleet(alle)
+    fout = _schrijf_facts(goals, geel, rood, topscorers, topgoals, compleet=compleet)
     if fout:
         log.error(f"Facts wegschrijven mislukt: {fout}")
-    else:
-        log.info(f"Facts bijgewerkt: goals={_totaal_goals()} geel={geel} rood={rood} "
-                 f"topscorers={topscorers}")
+        return False
+    log.info(f"Facts ververst: goals={goals} geel={geel} rood={rood} "
+             f"compleet={compleet} topscorers={topscorers}")
+    return True
+
+
+def _push_data(commit_msg: str) -> None:
+    """Commit + push data.js (GitHub Pages deploy). Doet niets als er niets wijzigde."""
+    subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.name", "Tempetoto Agent"], check=True)
+    subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.email", "agent@tempetoto.nl"], check=True)
+    subprocess.run(["git", "-C", str(REPO_DIR), "add", "data.js"], check=True)
+    if subprocess.run(["git", "-C", str(REPO_DIR), "diff", "--cached", "--quiet"]).returncode != 0:
+        subprocess.run(["git", "-C", str(REPO_DIR), "commit", "-m", commit_msg], check=True)
+        subprocess.run(["git", "-C", str(REPO_DIR), "push"], check=True)
 
 
 def _klaar_te_checken() -> bool:
@@ -2180,7 +2309,6 @@ async def run_check_uitslagen():
 
     bestaand = _lees_group_uitslagen()
     nieuwe = {}
-    nieuwe_fids = {}
     for d in (date.today(), date.today() - timedelta(days=1)):
         try:
             data = _football_api("fixtures", {"league": WC_LEAGUE_ID,
@@ -2201,7 +2329,6 @@ async def run_check_uitslagen():
                 continue
             mid, flip = paar
             nieuwe[mid] = f"{ga}-{gh}" if flip else f"{gh}-{ga}"
-            nieuwe_fids[mid] = f["fixture"]["id"]
 
     if not nieuwe:
         log.info("Check uitslagen: geen nieuwe afgelopen wedstrijden gevonden.")
@@ -2213,8 +2340,8 @@ async def run_check_uitslagen():
         log.error(f"Check uitslagen: {fout}")
         return
 
-    # Statistieken-kopje meteen mee bijwerken (zelfde commit als de uitslagen).
-    _update_facts(nieuwe_fids)
+    # Statistieken meteen mee bijwerken (zelfde commit als de uitslagen).
+    _ververs_facts()
 
     subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.name", "Tempetoto Agent"], check=True)
     subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.email", "agent@tempetoto.nl"], check=True)
@@ -2272,6 +2399,10 @@ async def run_daily_update():
     await bot.send_message(chat_id=CHAT_ID, text=bericht)
     mark_posted_today()
     log.info(f"Dagelijkse update gepost: {bericht}")
+    # Statistieken verversen (vangt ook de KO-fase, waar de kwartiercheck niet draait)
+    # en zo nodig finaliseren. Eigen commit, want de LLM-update is al gepusht.
+    if _ververs_facts():
+        _push_data("Update statistieken (facts)")
     bewaar_stand_snapshot()
     await meld_ronde_winnaar()
     await meld_dode_kampioenen()
@@ -2286,6 +2417,9 @@ def main():
            .post_init(announce_versie).build())
     app.add_handler(CommandHandler("stand", cmd_stand, filters=filters.Chat(CHAT_ID)))
     app.add_handler(CommandHandler("virtuelestand", cmd_virtuelestand, filters=filters.Chat(CHAT_ID)))
+    app.add_handler(CommandHandler("totaalgoals", cmd_totaalgoals, filters=filters.Chat(CHAT_ID)))
+    app.add_handler(CommandHandler("gelekaarten", cmd_gelekaarten, filters=filters.Chat(CHAT_ID)))
+    app.add_handler(CommandHandler("rodekaarten", cmd_rodekaarten, filters=filters.Chat(CHAT_ID)))
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & filters.Chat(CHAT_ID),
         handle_message,
