@@ -273,13 +273,16 @@ function computeScore(naam){
   }
   if(p.surprise) prematch+=surprisePts(p.surprise);
   if(p.deception) prematch+=deceptionPts(p.deception);
-  if(p.topscorer){
-    const rk=f.topscorers.indexOf(p.topscorer);
-    if(rk===0)prematch+=SCORING.topscorer.p1;else if(rk===1)prematch+=SCORING.topscorer.p2;else if(rk===2)prematch+=SCORING.topscorer.p3;
+  // Seizoensgokken tellen pas mee als de eindtotalen vaststaan (f.compleet).
+  if(f.compleet){
+    if(p.topscorer){
+      const rk=f.topscorers.indexOf(p.topscorer);
+      if(rk===0)prematch+=SCORING.topscorer.p1;else if(rk===1)prematch+=SCORING.topscorer.p2;else if(rk===2)prematch+=SCORING.topscorer.p3;
+    }
+    if(p.topscorerGoals!==""&&f.topscorerGoals!=null&&Number(p.topscorerGoals)===Number(f.topscorerGoals)) prematch+=SCORING.topscorer.exactGoals;
+    if(p.totalGoals!==""&&f.totalGoals!=null){const d=Math.abs(Number(p.totalGoals)-Number(f.totalGoals));const x=SCORING.totalGoals.exact-d;if(x>0)prematch+=x;}
+    for(const k of ["yellow","red"]) if(p[k]!==""&&f[k]!=null){const d=Math.abs(Number(p[k])-Number(f[k]));const x=SCORING.cards.exact-d;if(x>0)prematch+=x;}
   }
-  if(p.topscorerGoals!==""&&f.topscorerGoals!=null&&Number(p.topscorerGoals)===Number(f.topscorerGoals)) prematch+=SCORING.topscorer.exactGoals;
-  if(p.totalGoals!==""&&f.totalGoals!=null){const d=Math.abs(Number(p.totalGoals)-Number(f.totalGoals));const x=SCORING.totalGoals.exact-d;if(x>0)prematch+=x;}
-  for(const k of ["yellow","red"]) if(p[k]!==""&&f[k]!=null){const d=Math.abs(Number(p[k])-Number(f[k]));const x=SCORING.cards.exact-d;if(x>0)prematch+=x;}
 
   const voorrondes=group+advance+prematch, finalerondes=ko;
   return {group,advance,ko,prematch,voorrondes,finalerondes,totaal:voorrondes+finalerondes};
@@ -480,7 +483,7 @@ function participantRows(naam){
 }
 
 function flagName(land){return land?((typeof FLAGS!=="undefined"&&FLAGS[land])?FLAGS[land]+" ":"")+land:"";}
-function topscorerPts(p){const f=UITSLAGEN.facts;if(!p.topscorer)return 0;const s=SCORING.topscorer;const rk=f.topscorers.indexOf(p.topscorer);let pts=rk===0?s.p1:rk===1?s.p2:rk===2?s.p3:0;if(p.topscorerGoals!==""&&f.topscorerGoals!=null&&Number(p.topscorerGoals)===Number(f.topscorerGoals))pts+=s.exactGoals;return pts;}
+function topscorerPts(p){const f=UITSLAGEN.facts;if(!f.compleet||!p.topscorer)return 0;const s=SCORING.topscorer;const rk=f.topscorers.indexOf(p.topscorer);let pts=rk===0?s.p1:rk===1?s.p2:rk===2?s.p3:0;if(p.topscorerGoals!==""&&f.topscorerGoals!=null&&Number(p.topscorerGoals)===Number(f.topscorerGoals))pts+=s.exactGoals;return pts;}
 
 // ===== Referentietabel VERRASSING (outsiders buiten top-12) =====
 // rondes als oplopende kolommen; punten schalen met FIFA-ranking (onwaarschijnlijkheid)
@@ -531,8 +534,8 @@ function buildDeceptionTable(v,u){
   }
   return rows;
 }
-function totalGoalsPts(p){const f=UITSLAGEN.facts;if(p.totalGoals===""||f.totalGoals==null)return 0;const d=Math.abs(Number(p.totalGoals)-Number(f.totalGoals));return Math.max(0,SCORING.totalGoals.exact-d);}
-function cardPts(p,k){const f=UITSLAGEN.facts;if(p[k]===""||f[k]==null)return 0;const d=Math.abs(Number(p[k])-Number(f[k]));return Math.max(0,SCORING.cards.exact-d);}
+function totalGoalsPts(p){const f=UITSLAGEN.facts;if(!f.compleet||p.totalGoals===""||f.totalGoals==null)return 0;const d=Math.abs(Number(p.totalGoals)-Number(f.totalGoals));return Math.max(0,SCORING.totalGoals.exact-d);}
+function cardPts(p,k){const f=UITSLAGEN.facts;if(!f.compleet||p[k]===""||f[k]==null)return 0;const d=Math.abs(Number(p[k])-Number(f[k]));return Math.max(0,SCORING.cards.exact-d);}
 
 function matchCells(v,u,m){
   if(!m) return [C(""),C(""),C(""),C(""),C(""),C(""),C("")];

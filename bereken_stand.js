@@ -161,22 +161,26 @@ function computeScore(naam) {
   }
   if (p.surprise) prematch += surprisePts(p.surprise);
   if (p.deception) prematch += deceptionPts(p.deception);
-  if (p.topscorer) {
-    const rk = f.topscorers.indexOf(p.topscorer);
-    if (rk === 0) prematch += SCORING.topscorer.p1;
-    else if (rk === 1) prematch += SCORING.topscorer.p2;
-    else if (rk === 2) prematch += SCORING.topscorer.p3;
-  }
-  if (p.topscorerGoals !== '' && f.topscorerGoals != null && Number(p.topscorerGoals) === Number(f.topscorerGoals))
-    prematch += SCORING.topscorer.exactGoals;
-  if (p.totalGoals !== '' && f.totalGoals != null) {
-    const d = Math.abs(Number(p.totalGoals) - Number(f.totalGoals));
-    const x = SCORING.totalGoals.exact - d; if (x > 0) prematch += x;
-  }
-  for (const k of ['yellow', 'red']) {
-    if (p[k] !== '' && f[k] != null) {
-      const d = Math.abs(Number(p[k]) - Number(f[k]));
-      const x = SCORING.cards.exact - d; if (x > 0) prematch += x;
+  // Seizoensgokken (topscorer/goals/kaarten) tellen pas mee als de eindtotalen
+  // vaststaan (f.compleet). Tot die tijd reflecteert de stand alleen wedstrijdpunten.
+  if (f.compleet) {
+    if (p.topscorer) {
+      const rk = f.topscorers.indexOf(p.topscorer);
+      if (rk === 0) prematch += SCORING.topscorer.p1;
+      else if (rk === 1) prematch += SCORING.topscorer.p2;
+      else if (rk === 2) prematch += SCORING.topscorer.p3;
+    }
+    if (p.topscorerGoals !== '' && f.topscorerGoals != null && Number(p.topscorerGoals) === Number(f.topscorerGoals))
+      prematch += SCORING.topscorer.exactGoals;
+    if (p.totalGoals !== '' && f.totalGoals != null) {
+      const d = Math.abs(Number(p.totalGoals) - Number(f.totalGoals));
+      const x = SCORING.totalGoals.exact - d; if (x > 0) prematch += x;
+    }
+    for (const k of ['yellow', 'red']) {
+      if (p[k] !== '' && f[k] != null) {
+        const d = Math.abs(Number(p[k]) - Number(f[k]));
+        const x = SCORING.cards.exact - d; if (x > 0) prematch += x;
+      }
     }
   }
 
