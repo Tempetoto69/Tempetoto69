@@ -6,7 +6,7 @@ WK 2026 voetbalpoule voor een vriendengroep van 10 mensen. Statische HTML/JS web
 - **GitHub:** `Tempetoto69/Tempetoto69`
 - **Lokaal:** `/home/floris/Tempetoto`
 - **Live:** `Tempetoto69.github.io/Tempetoto69` (auto-deploy bij push naar main)
-- **Hosting machine:** altijd aan, maar kan geen LLM lokaal draaien → Claude API voor intelligentie
+- **Hosting machine:** altijd aan, maar kan geen LLM lokaal draaien → LLM via API: Venice AI (Kimi K2, primair) + Claude API (fallback)
 
 ## Deelnemers (10)
 EJ, Floris, Daniel, Giezen, Huttenhuis, Mark, Pieter, Slotboom, Smit, **AI Kees**
@@ -84,7 +84,7 @@ Geïntegreerd in `telegram_bot.py --daily-update`. Geen apart `update_agent.py`.
 **Architectuur:**
 ```
 cron (08:00, lokale machine) → telegram_bot.py --daily-update
-    └── Claude API (claude-sonnet-4-6) met tools:
+    └── LLM (Kimi K2 via Venice; fallback Claude Sonnet) met tools:
             ├── get_tournament_stats → football API (uitslagen, kaarten, topscorers)
             ├── get_standings / get_data / get_schedule / fetch_url
             ├── write_data  → schrijft data.js, valideer_data.js draait direct (rollback bij fout)
@@ -108,10 +108,12 @@ Draait als systemd service `tempetoto-bot` (chat-modus, polling).
 Herstart na code-wijzigingen: `sudo systemctl restart tempetoto-bot`.
 
 - **Chat:** reageert op @mention, "kees", Smit/uitslag-triggers en actieve gesprekken (Haiku, alleen read-tools). Bij doorpraten zónder mention/"kees" beoordeelt hij zelf of het aan hem gericht is en zwijgt anders (`[stil]` → niets posten). Per-gesprek venster (`laatste_kees_reactie`), niet per gebruiker. Bij een mention een korte luister-pauze + context van de berichten eromheen. Mag ook over niet-voetbal kletsen; verzint geen feiten (checkt poule-data via tools).
+  - **Chat-tools (read-only):** `get_schedule`, `get_standings`, `get_data` (volledige data.js), `get_voorspellingen` (overzicht voorspellingen per categorie: kampioen/verrassing/deceptie/topscorer/goals/kaarten/top2/best3), `get_live` (lopende wedstrijden via football API + per deelnemer toto_nu/exact_nu + **virtuele stand** met delta t.o.v. officieel), `fetch_url`. Kees kan álle data lezen/analyseren/samenvatten maar in de chat **nooit** wijzigen.
+  - **Virtuele stand:** `get_live` overlayt live-scores op `UITSLAGEN.group` via env `STAND_OVERLAY` op `bereken_stand.js` (zelfde scoring-logica, normale berekening onveranderd zonder env).
 - **Dagelijkse update:** zie component 3 (Sonnet, met write-tools)
 - **Pre-match preview:** cron elke 5 min (`--pre-match`) post ~15 min vóór elke groepswedstrijd de voorspellingen
 - **Versiebeheer:** `VERSIE`-constante; bij een versie-bump kondigt Kees bij opstart één keer een korte "KeesOS X.YZ"-changelog aan (`VERSIE_NOTITIES`, dedup via `versie`-key in `geposte_updates.json`). Markeert pas ná een geslaagde post.
-- Karakter: master Finance, piratenmasker, contrair, droge humor + sass, finance-jargon spaarzaam — zie `AI_KEES_PROFIEL.md`
+- Karakter: master Finance, piratenmasker, contrair, droge humor + sass, finance-jargon spaarzaam. **Sinds v2.34** ook door en door corrupt (omkoopbaar in woord, nooit in daad — wijzigt/verzint nooit echt iets) en schaamteloos/tactloos, lapt fatsoensnormen aan zijn laars (gevatte pikzwarte vriendengroep-humor, geen echte haat/bedreigingen) — zie `AI_KEES_PROFIEL.md`
 
 **Telegram-groep:** ✅ aangemaakt — chat ID `-5030253572`, bot `@ai_kees_bot` actief
 **Configuratie:** `/home/floris/Tempetoto/.env` (niet in git)

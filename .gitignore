@@ -6,3 +6,4 @@ geposte_updates.json
 geposte_prematch.json
 chat_history.json
 __pycache__/
+.aider*

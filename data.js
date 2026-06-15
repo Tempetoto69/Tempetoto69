@@ -1629,7 +1629,7 @@ const UITSLAGEN = {
     },
     results:{R32:[],R16:[],KF:[],HF:[],F:[]}
   },
-  facts:{ champion:"", finalist:"", topscorers:["","",""], topscorerGoals:null, totalGoals:null, yellow:null, red:null },
+  facts:{ champion:"", finalist:"", topscorers:["F. Balogun","Y. Ayari","K. Havertz"], topscorerGoals:2, totalGoals:38, yellow:30, red:3},
 };
 
 // ============================================================

@@ -9,6 +9,15 @@ const {
   surpriseFactor, deceptionFactor,
 } = require('./data.js');
 
+// Optionele overlay met (live/voorlopige) groepsuitslagen via env STAND_OVERLAY
+// (JSON {matchId:"thuis-uit"}). Voor de virtuele stand: reken alsof die wedstrijden
+// nu zo eindigen. Zonder env verandert er niets aan de normale berekening.
+if (process.env.STAND_OVERLAY) {
+  try {
+    Object.assign(UITSLAGEN.group, JSON.parse(process.env.STAND_OVERLAY));
+  } catch (e) { /* kapotte overlay negeren */ }
+}
+
 function parseScore(s) {
   if (!s || typeof s !== 'string' || !s.includes('-')) return null;
   const [h, a] = s.split('-').map(x => parseInt(x, 10));

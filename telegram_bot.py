@@ -21,6 +21,7 @@ import time
 import urllib.request
 import urllib.error
 import html
+import unicodedata
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -33,7 +34,7 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, C
 
 load_dotenv(Path(__file__).parent / '.env')
 
-VERSIE           = "3.0"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
+VERSIE           = "3.02"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
 # Korte changelog per versie. Bij een nieuwe versie kondigt Kees dit beknopt aan in de groep
 # (1x per versie, bij opstart). Geen notitie = geen aankondiging.
 VERSIE_NOTITIES  = {
@@ -66,6 +67,15 @@ VERSIE_NOTITIES  = {
             "beloftes vergeet ik dus niet meer, pas maar op. 3) ik weet welke dag het is en denk "
             "in speeldagen, vraag gerust welke wedstrijden er vandaag of vannacht zijn. 4) "
             "voorspellingen per wedstrijd opvragen kan nu ook gewoon.",
+    "3.01": "onderhoudsbeurt. 1) ik viel soms stil midden in het typen — opgelost, als m'n "
+            "nieuwe brein hapert springt de oude er nu naadloos in. 2) /virtuelestand en de "
+            "live-stand zagen sommige landen niet (bosnië, tsjechië, turkije en nog wat "
+            "exotisch spul) door naamgeklungel bij m'n databron — ook gefixt, ik zie nu "
+            "álles. omkopen blijft zinloos, klagen ook.",
+    "3.02": "korte servicebeurt na 3.01. m'n hoofdbrein was even afgesloten wegens een "
+            "verlopen abonnement (declaratie ligt bij floris), dat is verlengd. en mocht het "
+            "ooit nog haperen, dan neemt m'n reservebrein het nu wél gewoon over in plaats "
+            "van zwijgen. ik val dus niet meer stil. jammer voor jullie.",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
@@ -82,7 +92,9 @@ CHAT_BACKEND     = os.getenv('KEES_CHAT_BACKEND', 'venice')
 UPDATE_BACKEND   = os.getenv('KEES_UPDATE_BACKEND', 'venice')
 # Kimi is een redeneer-model: het denkt eerst (onzichtbaar) en antwoordt dan pas,
 # dus het token-budget moet ruim boven de zichtbare antwoordlengte liggen.
-VENICE_MAX_TOKENS = 4000
+# Bij data-analyse (heel data.js in context) redeneert hij makkelijk >4k tokens;
+# te krap budget = finish_reason=length = leeg antwoord = fallback naar Claude.
+VENICE_MAX_TOKENS = 16000
 REPO_DIR         = Path(__file__).parent
 DATA_JS          = REPO_DIR / 'data.js'
 POSTED_FILE      = REPO_DIR / 'geposte_updates.json'
@@ -280,10 +292,11 @@ zijn, geen logboek van elk gesprek. Gebruik je notities ook actief: kom terug op
 weddenschappen en beloftes als de kans zich voordoet.
 
 ACTUELE INFORMATIE VAN HET WEB:
-Je kunt actuele informatie van het web krijgen (voetbalnieuws, blessures, opstellingen, andere
-competities, het nieuws van de dag). Maar LET OP: alles over de poule zelf (stand, punten,
-voorspellingen, uitslagen in de poule) check je ALTIJD via je eigen tools — jouw data is daar
-de enige waarheid, niet het internet."""
+Je kunt actuele informatie van het web opzoeken (voetbalnieuws, blessures, fitheid en
+opstellingen van selecties, andere competities, het nieuws van de dag). Krijg je zo'n vraag,
+zoek het dan ook écht op — zeg niet dat je het niet weet en sla het niet stilzwijgend over.
+Maar LET OP: alles over de poule zelf (stand, punten, voorspellingen, uitslagen in de poule)
+check je ALTIJD via je eigen tools — jouw data is daar de enige waarheid, niet het internet."""
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
 
@@ -864,28 +877,27 @@ def _call_claude(system: str, messages: list, tools: list,
                 return GEEN_CREDITS_BERICHT
             raise
 
-        if response.stop_reason == "end_turn":
-            for block in response.content:
-                if hasattr(block, "text"):
-                    return block.text
-            return ""
+        if response.stop_reason != "tool_use":
+            # end_turn, maar ook max_tokens e.d.: geef de tekst terug die er is —
+            # een afgekapt antwoord is beter dan zwijgend stoppen met typen.
+            if response.stop_reason != "end_turn":
+                log.warning(f"Claude stop_reason={response.stop_reason} — "
+                            "tekst tot dusver teruggegeven.")
+            return "".join(b.text for b in response.content
+                           if hasattr(b, "text")).strip()
 
-        if response.stop_reason == "tool_use":
-            messages.append({"role": "assistant", "content": response.content})
-            results = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    result = run_tool(block.name, block.input, allow_write=allow_write)
-                    log.info(f"Tool {block.name}: {result[:80]}")
-                    results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
-            messages.append({"role": "user", "content": results})
-        else:
-            break
-    return ""
+        messages.append({"role": "assistant", "content": response.content})
+        results = []
+        for block in response.content:
+            if block.type == "tool_use":
+                result = run_tool(block.name, block.input, allow_write=allow_write)
+                log.info(f"Tool {block.name}: {result[:80]}")
+                results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result,
+                })
+        messages.append({"role": "user", "content": results})
 
 
 def _venice_tools(tools: list) -> list:
@@ -920,7 +932,6 @@ def _call_venice(system: str, messages: list, tools: list,
             "model": VENICE_MODEL,
             "max_completion_tokens": max_tokens,
             "messages": oai_messages,
-            "tools": venice_tools,
             "venice_parameters": {
                 "enable_web_search": "auto",
                 # Venice injecteert standaard een eigen system prompt; uitzetten zodat
@@ -928,6 +939,10 @@ def _call_venice(system: str, messages: list, tools: list,
                 "include_venice_system_prompt": False,
             },
         }
+        # Venice weigert een lege tools-array (HTTP 400) — laat het veld dan weg.
+        # Zonder dit faalde elke recap-call (tools=[]) en viel Kees terug op Claude.
+        if venice_tools:
+            body["tools"] = venice_tools
         req = urllib.request.Request(
             VENICE_BASE_URL,
             data=json.dumps(body).encode(),
@@ -961,9 +976,14 @@ def _call_venice(system: str, messages: list, tools: list,
                                      "tool_call_id": tc["id"],
                                      "content": str(result)})
             continue
-        return (msg.get("content") or "").strip()
-    log.warning("Venice: max tool-rondes bereikt zonder eindantwoord.")
-    return ""
+        content = (msg.get("content") or "").strip()
+        if not content:
+            # Kimi kan al z'n tokens opbranden aan intern redeneren en dan met een
+            # leeg antwoord eindigen — raise zodat de Claude-fallback het overneemt.
+            raise RuntimeError("Venice gaf leeg antwoord (finish_reason="
+                               f"{resp['choices'][0].get('finish_reason')})")
+        return content
+    raise RuntimeError("Venice: max tool-rondes bereikt zonder eindantwoord.")
 
 
 def _call_chat_llm(system: str, messages: list, tools: list) -> str:
@@ -976,8 +996,10 @@ def _call_chat_llm(system: str, messages: list, tools: list) -> str:
             return _call_venice(system, messages, tools)
         except Exception as e:
             log.error(f"Venice mislukt ({e}) — fallback naar Claude Haiku.")
+    # Ruimer dan strikt nodig voor 2-3 zinnen: bij data-analyse (get_data is groot)
+    # liep het antwoord anders tegen max_tokens aan en bleef Kees stil.
     return _call_claude(system=system, messages=messages, tools=tools,
-                        model="claude-haiku-4-5-20251001", max_tokens=300)
+                        model="claude-haiku-4-5-20251001", max_tokens=1000)
 
 
 def _call_update_llm(system: str, messages: list, tools: list) -> str:
@@ -1468,6 +1490,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         pre_delay = random.randint(8, 45)
 
+    stop_event  = asyncio.Event()
+    typing_task = None
     try:
         loop = asyncio.get_event_loop()
 
@@ -1480,20 +1504,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not reply:
                 return
             await asyncio.sleep(pre_delay)
-            stop_event = asyncio.Event()
             typing_task = asyncio.create_task(keep_typing(context.bot, msg.chat_id, stop_event))
             await asyncio.sleep(max(1.5, len(reply) / 50))
         else:
             await asyncio.sleep(pre_delay)
-            t0         = time.monotonic()
-            stop_event = asyncio.Event()
+            t0          = time.monotonic()
             typing_task = asyncio.create_task(keep_typing(context.bot, msg.chat_id, stop_event))
             reply = await loop.run_in_executor(
                 None, ai_kees_reply, naam, tekst, list(geschiedenis), is_floris, False
             )
             if not reply:
-                stop_event.set()
-                await typing_task
+                log.warning("LLM gaf leeg antwoord — geen bericht gepost.")
                 return
             elapsed       = time.monotonic() - t0
             typing_target = max(1.5, len(reply) / 50)
@@ -1510,6 +1531,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         log.error(f"Fout bij antwoord: {e}")
+    finally:
+        # Altijd het "typt…"-taakje stoppen, ook bij een fout of leeg antwoord —
+        # anders blijft Kees eeuwig typen in de groep.
+        stop_event.set()
+        if typing_task:
+            await typing_task
 
 
 # ── /stand: deterministische stand-berekening (geen LLM, read-only) ─────────────
@@ -1726,6 +1753,18 @@ async def run_pre_match():
 # ontbreekt. Werkt data.js bij, pusht, en laat Kees melden bij een nieuwe leider.
 
 EN_TO_NL = {v: k for k, v in NL_TO_EN.items()}
+# De football API hanteert per endpoint andere teamnamen (fixtures zegt "Czechia",
+# teams zegt "Czech Republic") — alle bekende varianten wijzen naar dezelfde NL-naam.
+EN_TO_NL.update({
+    "Bosnia & Herzegovina": "Bosnië-Herzegovina",
+    "Bosnia and Herzegovina": "Bosnië-Herzegovina",
+    "Czechia": "Tsjechië",
+    "Curaçao": "Curaçao",
+    "Cape Verde Islands": "Kaapverdië",
+    "Congo DR": "DR Congo",
+    "Türkiye": "Turkije",
+    "USA": "Verenigde Staten",
+})
 
 
 def _lees_group_uitslagen() -> dict:
@@ -1749,6 +1788,141 @@ def _schrijf_group_uitslagen(nieuwe: dict) -> str | None:
         DATA_JS.write_text(src)
         return f"validatie mislukt, teruggedraaid:\n{validatie.stdout}{validatie.stderr}"
     return None
+
+
+# ── UITSLAGEN.facts bijwerken (statistieken-kopje op de site) ──────────────────
+# Wordt na elke afgelopen groepswedstrijd ververst: totaal goals (uit de scores),
+# gele/rode kaarten (incrementeel uit de football API per nieuwe wedstrijd) en de
+# topscorers (toernooibreed via de API). champion/finalist blijven onaangeroerd
+# (die horen bij de KO-fase en worden door de dagelijkse update gezet).
+
+def _strip_accent(s: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", s)
+                   if unicodedata.category(c) != "Mn").lower()
+
+
+def _voorspelde_topscorers() -> list[str]:
+    """Unieke topscorer-voorspellingen, om API-namen naar de voorspelde spelling te
+    normaliseren — scoring vergelijkt exact (f.topscorers.indexOf(p.topscorer))."""
+    out = subprocess.run(
+        ["node", "-e",
+         "const d=require('./data.js');const s=new Set();"
+         "for(const n of d.DEELNEMERS){const t=d.VOORSPELLINGEN[n]&&"
+         "d.VOORSPELLINGEN[n].prematch&&d.VOORSPELLINGEN[n].prematch.topscorer;"
+         "if(t)s.add(t);}process.stdout.write(JSON.stringify([...s]))"],
+        cwd=str(REPO_DIR), capture_output=True, text=True)
+    try:
+        return json.loads(out.stdout)
+    except Exception:
+        return []
+
+
+def _normaliseer_topscorer(api_naam: str, voorspeld: list[str]) -> str:
+    """Mapt een API-naam (bijv. 'K. Mbappé') naar de voorspelde vorm ('Mbappé') als
+    een voorspelling als woord in de naam voorkomt; anders de API-naam zelf."""
+    n = _strip_accent(api_naam)
+    woorden = set(n.replace(".", " ").split())
+    for v in voorspeld:
+        sv = _strip_accent(v)
+        if sv in woorden or sv in n:
+            return v
+    return api_naam
+
+
+def _wedstrijd_kaarten(fid: int) -> tuple[int, int]:
+    geel = rood = 0
+    stats = _football_api("fixtures/statistics", {"fixture": fid})
+    for team_stats in stats.get("response", []):
+        for s in team_stats.get("statistics", []):
+            if s["type"] == "Yellow Cards":
+                geel += s["value"] or 0
+            elif s["type"] == "Red Cards":
+                rood += s["value"] or 0
+    return geel, rood
+
+
+def _api_topscorers() -> tuple[list[str], int | None]:
+    data = _football_api("players/topscorers",
+                         {"league": WC_LEAGUE_ID, "season": WC_SEASON})
+    voorspeld = _voorspelde_topscorers()
+    namen, topgoals = [], None
+    for entry in data.get("response", [])[:3]:
+        g = entry["statistics"][0]["goals"]["total"] or 0
+        namen.append(_normaliseer_topscorer(entry["player"]["name"], voorspeld))
+        if topgoals is None:
+            topgoals = g
+    while len(namen) < 3:
+        namen.append("")
+    return namen, topgoals
+
+
+def _totaal_goals() -> int:
+    tot = 0
+    for v in _lees_group_uitslagen().values():
+        if "-" in v:
+            a, b = v.split("-", 1)
+            if a.strip().isdigit() and b.strip().isdigit():
+                tot += int(a) + int(b)
+    return tot
+
+
+def _lees_facts() -> dict:
+    m = re.search(r'facts:\{([^}]*)\}', DATA_JS.read_text())
+    body = m.group(1) if m else ""
+    def num(veld):
+        g = re.search(rf'{veld}:\s*([0-9]+)', body)
+        return int(g.group(1)) if g else None
+    return {"yellow": num("yellow"), "red": num("red")}
+
+
+def _schrijf_facts(total_goals: int, yellow: int, red: int,
+                   topscorers: list[str], topscorer_goals: int | None) -> str | None:
+    """Schrijft de display-/scorefacts in UITSLAGEN.facts; valideert + rollback."""
+    src = DATA_JS.read_text()
+    m = re.search(r'(facts:\{)([^}]*)(\})', src)
+    if not m:
+        return "facts niet gevonden in data.js"
+    body = m.group(2)
+    ts = ",".join('"' + t.replace('"', '') + '"' for t in topscorers)
+    body = re.sub(r'(topscorers:)\s*\[[^\]]*\]', lambda _: f'topscorers:[{ts}]', body)
+    body = re.sub(r'(topscorerGoals:)\s*[^,}]+',
+                  lambda _: f'topscorerGoals:{topscorer_goals if topscorer_goals is not None else "null"}', body)
+    body = re.sub(r'(totalGoals:)\s*[^,}]+', lambda _: f'totalGoals:{total_goals}', body)
+    body = re.sub(r'(yellow:)\s*[^,}]+', lambda _: f'yellow:{yellow}', body)
+    body = re.sub(r'(red:)\s*[^,}]+', lambda _: f'red:{red}', body)
+    DATA_JS.write_text(src[:m.start(2)] + body + src[m.end(2):])
+    validatie = subprocess.run(["node", str(REPO_DIR / "valideer_data.js")],
+                               capture_output=True, text=True)
+    if validatie.returncode != 0:
+        DATA_JS.write_text(src)
+        return f"facts-validatie mislukt, teruggedraaid:\n{validatie.stdout}{validatie.stderr}"
+    return None
+
+
+def _update_facts(nieuwe_fids: dict) -> None:
+    """Werkt UITSLAGEN.facts bij na nieuwe uitslagen. Best-effort: een API-storing
+    mag de (al verwerkte) uitslagen niet blokkeren — loggen en doorgaan."""
+    huidig = _lees_facts()
+    geel = huidig.get("yellow") or 0
+    rood = huidig.get("red") or 0
+    for fid in nieuwe_fids.values():
+        try:
+            g, r = _wedstrijd_kaarten(fid)
+            geel += g
+            rood += r
+        except Exception as e:
+            log.error(f"Kaarten ophalen mislukt (fixture {fid}): {e}")
+    try:
+        topscorers, topgoals = _api_topscorers()
+    except Exception as e:
+        log.error(f"Topscorers ophalen mislukt: {e}")
+        return  # zonder topscorers niet half-schrijven; volgende wedstrijd opnieuw
+    fout = _schrijf_facts(_totaal_goals(), geel, rood, topscorers, topgoals)
+    if fout:
+        log.error(f"Facts wegschrijven mislukt: {fout}")
+    else:
+        log.info(f"Facts bijgewerkt: goals={_totaal_goals()} geel={geel} rood={rood} "
+                 f"topscorers={topscorers}")
 
 
 def _klaar_te_checken() -> bool:
@@ -2006,6 +2180,7 @@ async def run_check_uitslagen():
 
     bestaand = _lees_group_uitslagen()
     nieuwe = {}
+    nieuwe_fids = {}
     for d in (date.today(), date.today() - timedelta(days=1)):
         try:
             data = _football_api("fixtures", {"league": WC_LEAGUE_ID,
@@ -2026,6 +2201,7 @@ async def run_check_uitslagen():
                 continue
             mid, flip = paar
             nieuwe[mid] = f"{ga}-{gh}" if flip else f"{gh}-{ga}"
+            nieuwe_fids[mid] = f["fixture"]["id"]
 
     if not nieuwe:
         log.info("Check uitslagen: geen nieuwe afgelopen wedstrijden gevonden.")
@@ -2036,6 +2212,9 @@ async def run_check_uitslagen():
     if fout:
         log.error(f"Check uitslagen: {fout}")
         return
+
+    # Statistieken-kopje meteen mee bijwerken (zelfde commit als de uitslagen).
+    _update_facts(nieuwe_fids)
 
     subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.name", "Tempetoto Agent"], check=True)
     subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.email", "agent@tempetoto.nl"], check=True)
