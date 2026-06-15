@@ -643,12 +643,15 @@ function standRows(){
   rows.push([C("R1-R3 = groepsspeelrondes, daarna de KO-rondes; per segment de wedstrijdpunten, 🏆 = segmentwinnaar. "+
               "Punten voor doorgaan en de vooraf-voorspellingen tellen alleen mee in Totaal. Max = hoogste eindscore die nog haalbaar is.","rules",12)]);
   rows.push([]);
-  // statistiek
+  // statistiek + prognose (lineaire extrapolatie als de huidige trend doorzet)
   const f=UITSLAGEN.facts;
-  rows.push([C("Statistieken","lbl",16)]);
-  rows.push([C("Totaal goals:","lbl-r",3),C(f.totalGoals??"—","center",3)]);
-  rows.push([C("Gele kaarten:","lbl-r",3),C(f.yellow??"—","center",3)]);
-  rows.push([C("Rode kaarten:","lbl-r",3),C(f.red??"—","center",3)]);
+  const gespeeld=Object.keys(UITSLAGEN.group).length;       // gespeelde groepswedstrijden
+  const TOTAAL_WEDSTRIJDEN=104;                             // WK 2026: 72 groeps + 32 KO
+  const proj=v=>(gespeeld>0&&v!=null)?Math.round(v/gespeeld*TOTAAL_WEDSTRIJDEN):"—";
+  rows.push([C("Statistieken","lbl",6),C("",null,1),C("Prognose","lbl center",3)]);
+  rows.push([C("Totaal goals:","lbl-r",3),C(f.totalGoals??"—","center",3),C("",null,1),C(proj(f.totalGoals),"center",3)]);
+  rows.push([C("Gele kaarten:","lbl-r",3),C(f.yellow??"—","center",3),C("",null,1),C(proj(f.yellow),"center",3)]);
+  rows.push([C("Rode kaarten:","lbl-r",3),C(f.red??"—","center",3),C("",null,1),C(proj(f.red),"center",3)]);
   rows.push([C("Topscorer:","lbl-r",3)]);
   rows.push([C("1.","lbl-r",3),C(f.topscorers[0]||"—","",13)]);
   rows.push([C("2.","lbl-r",3),C(f.topscorers[1]||"—","",13)]);
