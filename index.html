@@ -646,19 +646,8 @@ function standRows(){
   rows.push([C("R1-R3 = groepsspeelrondes, daarna de KO-rondes; per segment de wedstrijdpunten, 🏆 = segmentwinnaar. "+
               "Punten voor doorgaan en de vooraf-voorspellingen tellen alleen mee in Totaal. Max = hoogste eindscore die nog haalbaar is.","rules",12)]);
   rows.push([]);
-  // statistiek + prognose (lineaire extrapolatie als de huidige trend doorzet)
-  const f=UITSLAGEN.facts;
-  const gespeeld=Object.keys(UITSLAGEN.group).length;       // gespeelde groepswedstrijden
-  const TOTAAL_WEDSTRIJDEN=104;                             // WK 2026: 72 groeps + 32 KO
-  const proj=v=>(gespeeld>0&&v!=null)?Math.round(v/gespeeld*TOTAAL_WEDSTRIJDEN):"—";
-  rows.push([C("Statistieken","lbl",6),C("",null,1),C("Prognose","lbl center",3)]);
-  rows.push([C("Totaal goals:","lbl-r",3),C(f.totalGoals??"—","center",3),C("",null,1),C(proj(f.totalGoals),"center",3)]);
-  rows.push([C("Gele kaarten:","lbl-r",3),C(f.yellow??"—","center",3),C("",null,1),C(proj(f.yellow),"center",3)]);
-  rows.push([C("Rode kaarten:","lbl-r",3),C(f.red??"—","center",3),C("",null,1),C(proj(f.red),"center",3)]);
-  rows.push([C("Topscorer:","lbl-r",3)]);
-  rows.push([C("1.","lbl-r",3),C(f.topscorers[0]||"—","",13)]);
-  rows.push([C("2.","lbl-r",3),C(f.topscorers[1]||"—","",13)]);
-  rows.push([C("3.","lbl-r",3),C(f.topscorers[2]||"—","",13)]);
+  // (Statistieken, prognose en de vergelijking met de voorspellingen staan nu op
+  //  de Stats-tab — "Wie ligt op koers".)
   return rows;
 }
 
@@ -738,6 +727,47 @@ function statsRows(){
   const ingevuld=DEELNEMERS.filter(n=>Object.keys(VOORSPELLINGEN[n].group||{}).length>0);
   push(C("Statistieken — de voorspellingen onder de loep","title-cell",16));
   push(C(`Gebaseerd op ${ingevuld.length} van de ${DEELNEMERS.length} ingeleverde voorspellingen.`,"rules",16));
+  rows.push([]);
+
+  // ── Wie ligt op koers — seizoensstatistieken vs voorspellingen ──
+  // Huidige (live) totalen + lineaire prognose naar het hele toernooi. Per
+  // statistiek een staafdiagram van ieders voorspelling met een prognose-lijn;
+  // 🏆 = dichtst bij de prognose. Deze punten tellen pas mee aan het eind.
+  const feiten=UITSLAGEN.facts;
+  const aantalGespeeld=Object.keys(UITSLAGEN.group).length;
+  const TOTAAL_WEDSTRIJDEN=104; // WK 2026: 72 groeps + 32 KO
+  const projecteer=v=>(aantalGespeeld>0&&v!=null)?Math.round(v/aantalGespeeld*TOTAAL_WEDSTRIJDEN):null;
+  const staafChart=(icon,label,veld,huidig)=>{
+    const prog=projecteer(huidig);
+    const lijst=ingevuld
+      .map(n=>({n,val:Number(VOORSPELLINGEN[n].prematch[veld])}))
+      .filter(d=>VOORSPELLINGEN[d.n].prematch[veld]!==""&&!isNaN(d.val));
+    push(C(`${icon} ${label}`,"grouphdr",12),C(`huidig ${huidig??"—"} · prognose ${prog??"—"}`,"subhdr",8));
+    if(!lijst.length||prog==null){push(C("— nog geen voorspellingen of data —","rules",16));rows.push([]);return;}
+    let beste=null; lijst.forEach(d=>{const diff=Math.abs(d.val-prog);if(beste==null||diff<beste.diff)beste={n:d.n,diff};});
+    const schaal=Math.max(...lijst.map(d=>d.val),prog)*1.08;
+    lijst.sort((a,b)=>b.val-a.val).forEach(d=>{
+      const koploper=d.n===beste.n;
+      const pct=Math.max(2,d.val/schaal*100), progPct=prog/schaal*100;
+      const kleur=koploper?"#2e8b57":"#9db4d6";
+      const bar=`<div style="position:relative;height:13px;background:#eef1f6;border-radius:2px;width:100%">`
+        +`<div style="position:absolute;left:0;top:0;bottom:0;width:${pct}%;background:${kleur};border-radius:2px"></div>`
+        +`<div style="position:absolute;left:${progPct}%;top:-1px;bottom:-1px;width:2px;background:#B22234" title="prognose ${prog}"></div>`
+        +`<span style="position:absolute;right:4px;top:0;line-height:13px;font-size:10px;color:#222;font-weight:600">${d.val}</span></div>`;
+      push(C((koploper?"🏆 ":"")+d.n,koploper?"lbl":"team",4),C(bar,"",14));
+    });
+    push(C(`Rode lijn = prognose (${prog}); 🏆 = dichtst erbij, dus op koers. Telt pas mee als de eindtotalen vaststaan.`,"rules",16));
+    rows.push([]);
+  };
+  push(C("Wie ligt op koers — seizoensstatistieken","title-cell",16));
+  staafChart("⚽","Totaal goals","totalGoals",feiten.totalGoals);
+  staafChart("🟨","Gele kaarten","yellow",feiten.yellow);
+  staafChart("🟥","Rode kaarten","red",feiten.red);
+  // actuele topscorers (stond eerder op de Stand-tab)
+  push(C("⚽ Topscorers (actueel)","grouphdr",12));
+  if((feiten.topscorers||[]).some(Boolean))
+    feiten.topscorers.forEach((t,i)=>{if(t)push(C(`${i+1}.`,"lbl-r",2),C(t,"team",6));});
+  else push(C("— nog geen topscorer-data —","rules",16));
   rows.push([]);
 
   // verdeling van de prematch-keuzes
