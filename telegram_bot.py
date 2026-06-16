@@ -76,7 +76,7 @@ VERSIE_NOTITIES  = {
             "verlopen abonnement (declaratie ligt bij floris), dat is verlengd. en mocht het "
             "ooit nog haperen, dan neemt m'n reservebrein het nu wél gewoon over in plaats "
             "van zwijgen. ik val dus niet meer stil. jammer voor jullie.",
-    "3.03": "drie nieuwe commando's: /totaalgoals, /gelekaarten en /rodekaarten. ik geef het "
+    "3.03": "drie nieuwe commando's: /totaalgoals (of /doelpunten), /gelekaarten en /rodekaarten. ik geef het "
             "huidige aantal, de prognose als deze trend doorzet, en wie van jullie er met z'n "
             "voorspelling het dichtst bij zit. diezelfde info staat nu ook op de site onder Stats "
             "('wie ligt op koers', met staafjes). en voor de duidelijkheid: die seizoensgokken "
@@ -2417,7 +2417,7 @@ def main():
            .post_init(announce_versie).build())
     app.add_handler(CommandHandler("stand", cmd_stand, filters=filters.Chat(CHAT_ID)))
     app.add_handler(CommandHandler("virtuelestand", cmd_virtuelestand, filters=filters.Chat(CHAT_ID)))
-    app.add_handler(CommandHandler("totaalgoals", cmd_totaalgoals, filters=filters.Chat(CHAT_ID)))
+    app.add_handler(CommandHandler(["totaalgoals", "doelpunten"], cmd_totaalgoals, filters=filters.Chat(CHAT_ID)))
     app.add_handler(CommandHandler("gelekaarten", cmd_gelekaarten, filters=filters.Chat(CHAT_ID)))
     app.add_handler(CommandHandler("rodekaarten", cmd_rodekaarten, filters=filters.Chat(CHAT_ID)))
     app.add_handler(MessageHandler(
