@@ -1579,7 +1579,7 @@ VOORSPELLINGEN["Floris"].prematch.topscorer = "Gakpo";
 //  UITSLAGEN (door organisator / later de agent)
 // ============================================================
 const UITSLAGEN = {
-  group:{"A1":"2-0","A2":"2-1","B1":"1-1","B2":"1-1","C1":"1-1","C2":"0-1","D1":"4-1","D2":"2-0","E1":"7-1","E2":"1-0","F1":"2-2","F2":"5-1","G1":"1-1","H1":"0-0","H2":"1-1"},                       // matchId -> "thuis-uit"
+  group:{"A1":"2-0","A2":"2-1","B1":"1-1","B2":"1-1","C1":"1-1","C2":"0-1","D1":"4-1","D2":"2-0","E1":"7-1","E2":"1-0","F1":"2-2","F2":"5-1","G1":"1-1","G2":"2-2","H1":"0-0","H2":"1-1"},                       // matchId -> "thuis-uit"
   advancers:{ top2:{}, best3:[] },// werkelijk doorgegane landen
   ko:{
     brackets:{
@@ -1629,7 +1629,7 @@ const UITSLAGEN = {
     },
     results:{R32:[],R16:[],KF:[],HF:[],F:[]}
   },
-  facts:{ compleet:false, champion:"", finalist:"", topscorers:["F. Balogun","Y. Ayari","K. Havertz"], topscorerGoals:2, totalGoals:42, yellow:40, red:3},
+  facts:{ compleet:false, champion:"", finalist:"", topscorers:["F. Balogun","Y. Ayari","K. Havertz"], topscorerGoals:2, totalGoals:46, yellow:41, red:3},
 };
 
 // ============================================================
