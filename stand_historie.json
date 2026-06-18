@@ -122,16 +122,16 @@
  {
   "datum": "2026-06-18",
   "stand": {
-   "Smit": 39,
+   "Smit": 44,
+   "Huttenhuis": 42,
+   "EJ": 40,
+   "Pieter": 40,
    "AI Kees": 38,
-   "EJ": 37,
-   "Huttenhuis": 37,
-   "Pieter": 35,
-   "Mark": 32,
-   "Slotboom": 32,
-   "Floris": 29,
-   "Daniel": 27,
-   "Giezen": 26
+   "Slotboom": 37,
+   "Mark": 35,
+   "Floris": 32,
+   "Daniel": 30,
+   "Giezen": 29
   }
  }
 ]
