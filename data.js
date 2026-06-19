@@ -1629,7 +1629,7 @@ const UITSLAGEN = {
     },
     results:{R32:[],R16:[],KF:[],HF:[],F:[]}
   },
-  facts:{ compleet:false, champion:"", finalist:"", topscorers:["Messi","F. Balogun","E. Haaland"], topscorerGoals:3, totalGoals:89, yellow:60, red:6},
+  facts:{ compleet:false, champion:"", finalist:"", topscorers:["J. David","Messi","J. Manzambi"], topscorerGoals:3, totalGoals:89, yellow:60, red:6},
 };
 
 // ============================================================
