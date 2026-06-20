@@ -1579,7 +1579,7 @@ VOORSPELLINGEN["Floris"].prematch.topscorer = "Gakpo";
 //  UITSLAGEN (door organisator / later de agent)
 // ============================================================
 const UITSLAGEN = {
-  group:{"A1":"2-0","A2":"2-1","A3":"1-1","A4":"1-0","B1":"1-1","B2":"1-1","B3":"4-1","B4":"6-0","C1":"1-1","C2":"0-1","C3":"0-1","C4":"3-0","D1":"4-1","D2":"2-0","D3":"2-0","D4":"0-1","E1":"7-1","E2":"1-0","F1":"2-2","F2":"5-1","G1":"1-1","G2":"2-2","H1":"0-0","H2":"1-1","I1":"3-1","I2":"1-4","J1":"3-0","J2":"3-1","K1":"1-1","K2":"1-3","L1":"4-2","L2":"1-0"},                       // matchId -> "thuis-uit"
+  group:{"A1":"2-0","A2":"2-1","A3":"1-1","A4":"1-0","B1":"1-1","B2":"1-1","B3":"4-1","B4":"6-0","C1":"1-1","C2":"0-1","C3":"0-1","C4":"3-0","D1":"4-1","D2":"2-0","D3":"2-0","D4":"0-1","E1":"7-1","E2":"1-0","F1":"2-2","F2":"5-1","F3":"5-1","G1":"1-1","G2":"2-2","H1":"0-0","H2":"1-1","I1":"3-1","I2":"1-4","J1":"3-0","J2":"3-1","K1":"1-1","K2":"1-3","L1":"4-2","L2":"1-0"},                       // matchId -> "thuis-uit"
   advancers:{ top2:{}, best3:[] },// werkelijk doorgegane landen
   ko:{
     brackets:{
@@ -1629,7 +1629,7 @@ const UITSLAGEN = {
     },
     results:{R32:[],R16:[],KF:[],HF:[],F:[]}
   },
-  facts:{ compleet:false, champion:"", finalist:"", topscorers:["J. David","Messi","J. Manzambi"], topscorerGoals:3, totalGoals:96, yellow:75, red:7},
+  facts:{ compleet:false, champion:"", finalist:"", topscorers:["J. David","Messi","Vinícius Júnior"], topscorerGoals:3, totalGoals:102, yellow:78, red:7},
 };
 
 // ============================================================
