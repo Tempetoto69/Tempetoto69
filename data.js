@@ -1725,7 +1725,7 @@ const UITSLAGEN = {
     },
     results:{R32:[],R16:[],KF:[],HF:[],F:[]}
   },
-  facts:{ compleet:false, champion:"", finalist:"", topscorers:["D. Undav","J. David","Messi"], topscorerGoals:3, totalGoals:125, yellow:97, red:8},
+  facts:{ compleet:false, champion:"", finalist:"", topscorers:["D. Undav","J. David","Messi"], topscorerGoals:3, totalGoals:121, yellow:94, red:8},
 };
 
 // ============================================================
