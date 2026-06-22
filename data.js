@@ -166,10 +166,10 @@ const PUNTENTELLING = [
   ["Beste nummers 3:","Per goed voorspelde nummer 3 die doorgaat: 3 punten (8 plekken)."],
   ["Kampioen:","Voorspeld land verliezend finalist: 16 punten. Kampioen: 40 punten."],
   ["Topscorer:","Speler 3e plaats op de topscorerslijst: 9 pt; 2e plaats 18 pt; 1e plaats 35 pt. Correct aantal goals: +8 pt."],
-  ["Totaal aantal goals:","Voorspeld aantal exact goed: 25 pt. Eén goal verschil: 24 pt, twee: 23, drie: 22, enz."],
+  ["Totaal aantal goals:","Voorspeld aantal exact goed: 25 pt. Één goal verschil: 24 pt, twee: 23, drie: 22, enz."],
   ["Verrassing:","Kies een land BUITEN de top-12. Punten naar hoe ver het komt (R16 → winnaar) én hoe onwaarschijnlijk het land is volgens de FIFA-ranking: hoe lager gerankt, hoe meer punten. Zie de verrassingstabel."],
   ["Deceptie:","Kies een land UIT de top-12 (de favorieten). Punten naar hoe vroeg het faalt (groepsfase eruit = meest) én hoe hoog het gerankt staat: hoe groter de favoriet, hoe meer punten. Zie de deceptietabel."],
-  ["Gele/rode kaarten:","Voorspeld aantal exact goed: 12 pt. Eén kaart verschil: 11 pt, twee: 10, drie: 9, enz. (geel en rood apart)."],
+  ["Gele/rode kaarten:","Voorspeld aantal exact goed: 12 pt. Één kaart verschil: 11 pt, twee: 10, drie: 9, enz. (geel en rood apart)."],
 ];
 
 // ============================================================
@@ -1576,94 +1576,17 @@ VOORSPELLINGEN["EJ"].prematch.topscorer = "Yamal";
 VOORSPELLINGEN["Floris"].prematch.topscorer = "Gakpo";
 
 // ============================================================
-//  UITSLAGEN (door organisator / later de agent)
-// ============================================================
-const UITSLAGEN = {
-  group:{"A1":"2-0","A2":"2-1","A3":"1-1","A4":"1-0","B1":"1-1","B2":"1-1","B3":"4-1","B4":"6-0","C1":"1-1","C2":"0-1","C3":"0-1","C4":"3-0","D1":"4-1","D2":"2-0","D3":"2-0","D4":"0-1","E1":"7-1","E2":"1-0","E3":"2-1","E4":"0-0","F1":"2-2","F2":"5-1","F3":"5-1","F4":"0-4","G1":"1-1","G2":"2-2","G3":"0-0","G4":"1-3","H1":"0-0","H2":"1-1","H3":"4-0","H4":"2-2","I1":"3-1","I2":"1-4","J1":"3-0","J2":"3-1","K1":"1-1","K2":"1-3","L1":"4-2","L2":"1-0"},                       // matchId -> "thuis-uit"
-  advancers:{ top2:{}, best3:[] },// werkelijk doorgegane landen
-  ko:{
-    brackets:{
-      R32:[
-        // Volgorde = FIFA wedstrijdnummers 73-88
-        {home:"2A",  away:"2B"},               // M73
-        {home:"1E",  away:"3e (A/B/C/D/F)"},   // M74
-        {home:"1F",  away:"2C"},               // M75
-        {home:"1C",  away:"2F"},               // M76
-        {home:"1I",  away:"3e (C/D/F/G/H)"},   // M77
-        {home:"2E",  away:"2I"},               // M78
-        {home:"1A",  away:"3e (C/E/F/H/I)"},   // M79
-        {home:"1L",  away:"3e (E/H/I/J/K)"},   // M80
-        {home:"1D",  away:"3e (B/E/F/I/J)"},   // M81
-        {home:"1G",  away:"3e (A/E/H/I/J)"},   // M82
-        {home:"2K",  away:"2L"},               // M83
-        {home:"1H",  away:"2J"},               // M84
-        {home:"1B",  away:"3e (E/F/G/I/J)"},   // M85
-        {home:"1J",  away:"2H"},               // M86
-        {home:"1K",  away:"3e (D/E/I/J/L)"},   // M87
-        {home:"2D",  away:"2G"},               // M88
-      ],
-      R16:[
-        // M89-96 — W = Winnaar R32 match N
-        {home:"W R32-2",  away:"W R32-5"},     // M89
-        {home:"W R32-1",  away:"W R32-3"},     // M90
-        {home:"W R32-4",  away:"W R32-6"},     // M91
-        {home:"W R32-7",  away:"W R32-8"},     // M92
-        {home:"W R32-11", away:"W R32-12"},    // M93
-        {home:"W R32-9",  away:"W R32-10"},    // M94
-        {home:"W R32-14", away:"W R32-16"},    // M95
-        {home:"W R32-13", away:"W R32-15"},    // M96
-      ],
-      KF:[
-        {home:"W R16-1", away:"W R16-2"},      // M97
-        {home:"W R16-5", away:"W R16-6"},      // M98
-        {home:"W R16-3", away:"W R16-4"},      // M99
-        {home:"W R16-7", away:"W R16-8"},      // M100
-      ],
-      HF:[
-        {home:"W KF-1", away:"W KF-2"},        // M101
-        {home:"W KF-3", away:"W KF-4"},        // M102
-      ],
-      F:[
-        {home:"W HF-1", away:"W HF-2"},        // M104
-      ],
-    },
-    results:{R32:[],R16:[],KF:[],HF:[],F:[]}
-  },
-  facts:{ compleet:false, champion:"", finalist:"", topscorers:["D. Undav","J. David","Messi"], topscorerGoals:3, totalGoals:121, yellow:94, red:8},
-};
-
-// ============================================================
-//  ALL TIME RANKING — historische editie-scores
-//  deelnemer2026: koppeling naar DEELNEMERS-naam voor de 2026-score
-// ============================================================
-const ALLTIME_DATA = {
-  jaren: [2006, 2008, 2010, 2012, 2014, 2016],
-  deelnemers: [
-    { naam:"EJ",         scores:{2006:173,2008:111,2010:244,2012:114,2014:231,2016:175}, deelnemer2026:"EJ" },
-    { naam:"Huttenhuis", scores:{2006:158,2008:109,2010:235,2012:125,2014:231,2016:190}, deelnemer2026:"Huttenhuis" },
-    { naam:"Mark",       scores:{2006:141,2008:90, 2010:248,2012:132,2014:222,2016:197}, deelnemer2026:"Mark" },
-    { naam:"Slotboom",   scores:{2006:162,2008:100,2010:223,2012:105,2014:215,2016:146}, deelnemer2026:"Slotboom" },
-    { naam:"Smit",       scores:{2006:141,2008:90, 2010:195,2012:70, 2014:249,2016:175}, deelnemer2026:"Smit" },
-    { naam:"AI Kees",    scores:{2006:132,2008:96, 2010:253,2012:0,  2014:197,2016:206}, deelnemer2026:"AI Kees" },
-    { naam:"Pieter",     scores:{2006:128,2008:76, 2010:212,2012:75, 2014:214,2016:126}, deelnemer2026:"Pieter" },
-    { naam:"Daniel",     scores:{2006:125,2008:76, 2010:171,2012:52, 2014:208,2016:154}, deelnemer2026:"Daniel" },
-    { naam:"Floris",     scores:{2006:132,2008:56, 2010:228,2012:59, 2014:174,2016:128}, deelnemer2026:"Floris" },
-    { naam:"Giezen",     scores:{2006:112,2008:111,2010:234,2012:0,  2014:208,2016:0  }, deelnemer2026:"Giezen" },
-    { naam:"Hugo",       scores:{2006:125,2008:48, 2010:191,2012:0,  2014:0,  2016:0  }, deelnemer2026:null },
-    { naam:"Buisman",    scores:{2006:127,2008:38, 2010:0,  2012:0,  2014:0,  2016:0  }, deelnemer2026:null },
-  ],
-};
-
-// AI Kees voorspellingen — gegenereerd door maak_kees_voorspellingen.py
-// Motivatie: kampioen=Frankrijk is geen contraire pick maar de diepte van de selectie is mispriced als 'gewoon favoriet' — dit is de minste risico-adjusted bet in het veld., verrassing=Zwitserland is een lowvol value-aandeel: defensief solide, B-groep met Qatar en Bosnië is een gespreid tafeltje, en ik woon hier dus ik weet wat ik koop.,
+//  AI Kees voorspellingen — gegenereerd door maak_kees_voorspellingen.py
+//  Motivatie: kampioen=Frankrijk is geen contraire pick maar de diepte van de selectie is mispriced als 'gewoon favoriet' — dit is de minste risico-adjusted bet in het veld., verrassing=Zwitserland is een lowvol value-aandeel: defensief solide, B-groep met Qatar en Bosnië is een gespreid tafeltje, en ik woon hier dus ik weet wat ik koop.,
 //            deceptie=Duitsland is de klassieke overgekochte naam — sentiment hoog, fundamentals wankel, en groep E met Ecuador als short tegen de hype., topscorer=Mbappé is de obvious trade, maar bij Frankrijk die ver komt is volume gegarandeerd; ik betaal liever voor zekerheid dan voor een longshot-spits.
+// ============================================================
 VOORSPELLINGEN["AI Kees"] = {
   prematch: {
     champion: "Frankrijk",
-    finalist_predicted: "Argentini\u00eb",
+    finalist_predicted: "Argentinië",
     surprise: "Zwitserland",
     deception: "Duitsland",
-    topscorer: "Mbapp\u00e9",
+    topscorer: "Mbappé",
     topscorerGoals: "7",
     totalGoals: "165",
     yellow: "230",
@@ -1746,6 +1669,85 @@ VOORSPELLINGEN["AI Kees"] = {
   top2: {"A": ["Mexico", "Zuid-Korea"], "B": ["Zwitserland", "Canada"], "C": ["Brazilië", "Marokko"], "D": ["Verenigde Staten", "Australië"], "E": ["Duitsland", "Ecuador"], "F": ["Nederland", "Japan"], "G": ["België", "Iran"], "H": ["Spanje", "Uruguay"], "I": ["Frankrijk", "Senegal"], "J": ["Argentinië", "Oostenrijk"], "K": ["Portugal", "Colombia"], "L": ["Engeland", "Kroatië"]},
   best3: ["Ivoorkust", "Noorwegen", "Turkije", "Schotland", "Panama", "Egypte", "Zweden", "Tsjechië"],
   ko: {R32:[],R16:[],KF:[],HF:[],F:[]},
+};
+
+// ============================================================
+//  UITSLAGEN (door organisator / later de agent)
+// ============================================================
+const UITSLAGEN = {
+  group:{"A1":"2-0","A2":"2-1","A3":"1-1","A4":"1-0","B1":"1-1","B2":"1-1","B3":"4-1","B4":"6-0","C1":"1-1","C2":"0-1","C3":"0-1","C4":"3-0","D1":"4-1","D2":"2-0","D3":"2-0","D4":"0-1","E1":"7-1","E2":"1-0","E3":"2-1","E4":"0-0","F1":"2-2","F2":"5-1","F3":"5-1","F4":"0-4","G1":"1-1","G2":"2-2","G3":"0-0","G4":"1-3","H1":"0-0","H2":"1-1","H3":"4-0","H4":"2-2","I1":"3-1","I2":"1-4","J1":"3-0","J2":"3-1","K1":"1-1","K2":"1-3","L1":"4-2","L2":"1-0"},                       // matchId -> "thuis-uit"
+  advancers:{ top2:{}, best3:[] },// werkelijk doorgegane landen
+  ko:{
+    brackets:{
+      R32:[
+        // Volgorde = FIFA wedstrijdnummers 73-88
+        {home:"2A",  away:"2B"},               // M73
+        {home:"1E",  away:"3e (A/B/C/D/F)"},   // M74
+        {home:"1F",  away:"2C"},               // M75
+        {home:"1C",  away:"2F"},               // M76
+        {home:"1I",  away:"3e (C/D/F/G/H)"},   // M77
+        {home:"2E",  away:"2I"},               // M78
+        {home:"1A",  away:"3e (C/E/F/H/I)"},   // M79
+        {home:"1L",  away:"3e (E/H/I/J/K)"},   // M80
+        {home:"1D",  away:"3e (B/E/F/I/J)"},   // M81
+        {home:"1G",  away:"3e (A/E/H/I/J)"},   // M82
+        {home:"2K",  away:"2L"},               // M83
+        {home:"1H",  away:"2J"},               // M84
+        {home:"1B",  away:"3e (E/F/G/I/J)"},   // M85
+        {home:"1J",  away:"2H"},               // M86
+        {home:"1K",  away:"3e (D/E/I/J/L)"},   // M87
+        {home:"2D",  away:"2G"},               // M88
+      ],
+      R16:[
+        // M89-96 — W = Winnaar R32 match N
+        {home:"W R32-2",  away:"W R32-5"},     // M89
+        {home:"W R32-1",  away:"W R32-3"},     // M90
+        {home:"W R32-4",  away:"W R32-6"},     // M91
+        {home:"W R32-7",  away:"W R32-8"},     // M92
+        {home:"W R32-11", away:"W R32-12"},    // M93
+        {home:"W R32-9",  away:"W R32-10"},    // M94
+        {home:"W R32-14", away:"W R32-16"},    // M95
+        {home:"W R32-13", away:"W R32-15"},    // M96
+      ],
+      KF:[
+        {home:"W R16-1", away:"W R16-2"},      // M97
+        {home:"W R16-5", away:"W R16-6"},      // M98
+        {home:"W R16-3", away:"W R16-4"},      // M99
+        {home:"W R16-7", away:"W R16-8"},      // M100
+      ],
+      HF:[
+        {home:"W KF-1", away:"W KF-2"},        // M101
+        {home:"W KF-3", away:"W KF-4"},        // M102
+      ],
+      F:[
+        {home:"W HF-1", away:"W HF-2"},        // M104
+      ],
+    },
+    results:{R32:[],R16:[],KF:[],HF:[],F:[]}
+  },
+  facts:{ compleet:false, champion:"", finalist:"", topscorers:["D. Undav","J. David","Messi"], topscorerGoals:3, totalGoals:125, yellow:97, red:8},
+};
+
+// ============================================================
+//  ALL TIME RANKING — historische editie-scores
+//  deelnemer2026: koppeling naar DEELNEMERS-naam voor de 2026-score
+// ============================================================
+const ALLTIME_DATA = {
+  jaren: [2006, 2008, 2010, 2012, 2014, 2016],
+  deelnemers: [
+    { naam:"EJ",         scores:{2006:173,2008:111,2010:244,2012:114,2014:231,2016:175}, deelnemer2026:"EJ" },
+    { naam:"Huttenhuis", scores:{2006:158,2008:109,2010:235,2012:125,2014:231,2016:190}, deelnemer2026:"Huttenhuis" },
+    { naam:"Mark",       scores:{2006:141,2008:90, 2010:248,2012:132,2014:222,2016:197}, deelnemer2026:"Mark" },
+    { naam:"Slotboom",   scores:{2006:162,2008:100,2010:223,2012:105,2014:215,2016:146}, deelnemer2026:"Slotboom" },
+    { naam:"Smit",       scores:{2006:141,2008:90, 2010:195,2012:70, 2014:249,2016:175}, deelnemer2026:"Smit" },
+    { naam:"AI Kees",    scores:{2006:132,2008:96, 2010:253,2012:0,  2014:197,2016:206}, deelnemer2026:"AI Kees" },
+    { naam:"Pieter",     scores:{2006:128,2008:76, 2010:212,2012:75, 2014:214,2016:126}, deelnemer2026:"Pieter" },
+    { naam:"Daniel",     scores:{2006:125,2008:76, 2010:171,2012:52, 2014:208,2016:154}, deelnemer2026:"Daniel" },
+    { naam:"Floris",     scores:{2006:132,2008:56, 2010:228,2012:59, 2014:174,2016:128}, deelnemer2026:"Floris" },
+    { naam:"Giezen",     scores:{2006:112,2008:111,2010:234,2012:0,  2014:208,2016:0  }, deelnemer2026:"Giezen" },
+    { naam:"Hugo",       scores:{2006:125,2008:48, 2010:191,2012:0,  2014:0,  2016:0  }, deelnemer2026:null },
+    { naam:"Buisman",    scores:{2006:127,2008:38, 2010:0,  2012:0,  2014:0,  2016:0  }, deelnemer2026:null },
+  ],
 };
 
 // Alleen voor Node (bereken_stand.js, valideer_data.js, bot) — browsers slaan dit over.
