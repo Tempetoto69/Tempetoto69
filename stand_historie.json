@@ -197,16 +197,16 @@
  {
   "datum": "2026-06-23",
   "stand": {
-   "Huttenhuis": 96,
-   "EJ": 94,
+   "Huttenhuis": 99,
+   "EJ": 97,
+   "Pieter": 93,
+   "Slotboom": 92,
    "Smit": 92,
-   "Pieter": 90,
-   "Slotboom": 89,
-   "Mark": 81,
+   "Mark": 84,
    "AI Kees": 79,
-   "Floris": 70,
+   "Floris": 73,
    "Giezen": 65,
-   "Daniel": 60
+   "Daniel": 63
   }
  }
 ]
