@@ -460,7 +460,7 @@ function participantRows(naam){
       rows.push(subRow(`Subtotaal ${round.naam}:`, 0, "pt"));
       continue;
     }
-    push(C(""),C(""),C("voorsp.","subhdr"),C("uitslag","subhdr"),C("pt.","subhdr"));
+    push(C("",null,4),C("voorsp.","subhdr",7),C("uitslag","subhdr",7),C("pt.","subhdr",2));
     let roundPts=0;
     br.forEach((duel,i)=>{
       const pred=(v.ko[round.key]||[])[i]||"";
@@ -473,8 +473,8 @@ function participantRows(naam){
       const predTxt=pred+(pdoor?` (${pdoor} door)`:"");
       const resTxt=res+(rdoor&&parseScore(res)&&toto(...parseScore(res))===0?` (${rdoor} door)`:"");
       const r=[];
-      r.push(C(flagName(duel.home)+" – "+flagName(duel.away),"team",2));
-      r.push(C(predTxt||"","pred"));r.push(C(resTxt||"","res"));r.push(C(res?String(pts):"","pt"+(pts>0?" good":" zero")));
+      r.push(C(flagName(duel.home)+" – "+flagName(duel.away),"team",4));
+      r.push(C(predTxt||"","pred",7));r.push(C(resTxt||"","res",7));r.push(C(res?String(pts):"","pt"+(pts>0?" good":" zero"),2));
       rows.push(r);
     });
     rows.push(subRow(`Subtotaal ${round.naam}:`, roundPts, "pt"));
