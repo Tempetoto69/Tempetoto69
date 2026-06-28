@@ -34,7 +34,7 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, C
 
 load_dotenv(Path(__file__).parent / '.env')
 
-VERSIE           = "3.05"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
+VERSIE           = "3.06"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
 # Korte changelog per versie. Bij een nieuwe versie kondigt Kees dit beknopt aan in de groep
 # (1x per versie, bij opstart). Geen notitie = geen aankondiging.
 VERSIE_NOTITIES  = {
@@ -97,6 +97,11 @@ VERSIE_NOTITIES  = {
             "gelijkspel, dan krijg je de toto-punten alleen als jouw doorgaander ook daadwerkelijk "
             "doorgaat (na verlenging of penalty's). de punten voor de exacte uitslag krijg je los "
             "daarvan gewoon bij de juiste 90-minutenstand. zo hoort het, en zo reken ik het nu af.",
+    "3.06": "foutje rechtgezet. /virtuelestand en de live-stand zagen alleen groepswedstrijden — nu "
+            "de knockout begonnen is gaf ik dus 'geen wedstrijd bezig' terwijl er een achtste finale "
+            "liep. opgelost: ik tel knockout-wedstrijden nu net zo goed live mee, op de stand na 90 "
+            "minuten (verlenging en penalty's tellen niet voor de punten, gelijkspel zonder bekende "
+            "doorgaander levert nog geen toto op). geldt voor alle rondes tot en met de finale.",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
@@ -561,6 +566,35 @@ def _group_match_pairs() -> dict:
     return by_pair
 
 
+def _ko_90min_goals(f) -> tuple:
+    """De stand na 90 min (thuis, uit) uit een fixture. KO-punten tellen op die
+    stand (score.fulltime), nooit op verlenging/penalty's. Tijdens de reguliere
+    speeltijd is fulltime nog leeg → dan is de live goals-stand de 90-min stand."""
+    ft = (f.get("score") or {}).get("fulltime") or {}
+    if ft.get("home") is not None:
+        return ft["home"], ft["away"]
+    return f["goals"]["home"], f["goals"]["away"]
+
+
+def _ko_bracket_pairs() -> dict:
+    """Index van UITSLAGEN.ko.brackets: (thuis, uit) -> (ronde, index, flip).
+    flip=True als de paring in de bracket omgedraaid staat. Alleen slots met twee
+    echte landen tellen mee (placeholders/winnaars-van overslaan)."""
+    brackets = json.loads(subprocess.run(
+        ["node", "-e",
+         "console.log(JSON.stringify(require('./data.js').UITSLAGEN.ko.brackets))"],
+        cwd=REPO_DIR, capture_output=True, text=True, check=True).stdout)
+    by_pair = {}
+    for ronde, slots in brackets.items():
+        for i, slot in enumerate(slots or []):
+            home, away = slot.get("home"), slot.get("away")
+            if not home or not away:
+                continue
+            by_pair[(home, away)] = (ronde, i, False)
+            by_pair[(away, home)] = (ronde, i, True)
+    return by_pair
+
+
 # Per (live) groepswedstrijd: wie voorspelde wat en staat hun toto/exact NU goed.
 # Krijgt de actuele scores als argv-paren "matchId=thuis-uit".
 _LIVE_PRED_JS = """
@@ -584,6 +618,32 @@ for(const id of Object.keys(live)){
 console.log(JSON.stringify(out));
 """
 
+# Per (live) KO-wedstrijd: wie voorspelde wat en staat hun toto/exact NU goed.
+# Krijgt de actuele scores als argv-paren "ronde:index=thuis-uit". Spiegelt scoreKo:
+# een lopende wedstrijd heeft nog geen definitieve doorgaander, dus een voorspeld
+# gelijkspel levert (nog) geen toto op — exact telt sowieso bij de juiste 90-min score.
+_LIVE_KO_PRED_JS = """
+const d=require('./data.js');
+const live={}; for(const a of process.argv.slice(1)){const[k,s]=a.split('=');live[k]=s;}
+const toto=(h,a)=>h>a?1:h<a?-1:0;
+const parse=s=>{if(!s||typeof s!=='string'||!s.includes('-'))return null;
+  const[a,b]=s.split('-').map(Number);return isNaN(a)||isNaN(b)?null:[a,b];};
+const out={};
+for(const key of Object.keys(live)){
+  const[ronde,idx]=key.split(':'); const i=Number(idx);
+  const r=parse(live[key]); if(!r) continue;
+  const v=[];
+  for(const n of d.DEELNEMERS){
+    const p=parse((d.VOORSPELLINGEN[n].ko&&d.VOORSPELLINGEN[n].ko[ronde]||[])[i]); if(!p) continue;
+    const dp=toto(p[0],p[1]),dr=toto(r[0],r[1]);
+    v.push({naam:n,voorspeld:`${p[0]}-${p[1]}`,
+            toto_nu:dp===dr&&dp!==0,exact_nu:p[0]===r[0]&&p[1]===r[1]});
+  }
+  out[key]=v;
+}
+console.log(JSON.stringify(out));
+"""
+
 
 def run_live() -> str:
     """Lopende wedstrijden + per deelnemer of hun toto/exact nu goed staat, plus de
@@ -593,7 +653,9 @@ def run_live() -> str:
                           ensure_ascii=False)
     try:
         by_pair = _group_match_pairs()
-        live_scores, meta = {}, {}
+        ko_pair = _ko_bracket_pairs()
+        # Groep: {matchId: "thuis-uit"}. KO: {ronde: {index: "thuis-uit"}}.
+        live_scores, ko_scores, meta = {}, {}, {}
         for d in (date.today(), date.today() - timedelta(days=1)):
             data = _football_api("fixtures", {"league": WC_LEAGUE_ID,
                                               "season": WC_SEASON, "date": str(d)})
@@ -602,26 +664,45 @@ def run_live() -> str:
                     continue
                 home = EN_TO_NL.get(f["teams"]["home"]["name"])
                 away = EN_TO_NL.get(f["teams"]["away"]["name"])
-                paar = by_pair.get((home, away))
                 gh, ga = f["goals"]["home"], f["goals"]["away"]
-                if not paar or gh is None:
-                    continue  # KO-wedstrijd, onbekend team of nog geen score
-                mid, flip = paar
-                live_scores[mid] = f"{ga}-{gh}" if flip else f"{gh}-{ga}"
-                meta[mid] = {"thuis": home, "uit": away,
-                             "status": f["fixture"]["status"]["short"],
-                             "minuut": f["fixture"]["status"].get("elapsed")}
+                if gh is None:
+                    continue  # nog geen score
+                status = f["fixture"]["status"]["short"]
+                minuut = f["fixture"]["status"].get("elapsed")
+                paar = by_pair.get((home, away))
+                if paar:
+                    mid, flip = paar
+                    live_scores[mid] = f"{ga}-{gh}" if flip else f"{gh}-{ga}"
+                    meta[mid] = {"thuis": home, "uit": away,
+                                 "status": status, "minuut": minuut}
+                    continue
+                kpaar = ko_pair.get((home, away))
+                if kpaar:
+                    ronde, i, flip = kpaar
+                    kgh, kga = _ko_90min_goals(f)  # 90-min stand, niet verlenging
+                    if kgh is None:
+                        continue
+                    sleutel = f"{ronde}:{i}"
+                    ko_scores.setdefault(ronde, {})[i] = f"{kga}-{kgh}" if flip else f"{kgh}-{kga}"
+                    meta[sleutel] = {"thuis": home, "uit": away, "ronde": ronde,
+                                     "status": status, "minuut": minuut}
+                # anders: onbekend team / niet (meer) in een bracket → overslaan
     except Exception as e:
         return json.dumps({"live": False, "bericht": f"Football API fout: {e}"}, ensure_ascii=False)
 
-    if not live_scores:
+    if not live_scores and not ko_scores:
         return json.dumps({"live": False,
-                           "bericht": "Er is op dit moment geen WK-groepswedstrijd bezig."},
+                           "bericht": "Er is op dit moment geen WK-wedstrijd bezig."},
                           ensure_ascii=False)
 
     preds = json.loads(subprocess.run(
         ["node", "-e", _LIVE_PRED_JS, *[f"{k}={v}" for k, v in live_scores.items()]],
-        cwd=REPO_DIR, capture_output=True, text=True, check=True).stdout)
+        cwd=REPO_DIR, capture_output=True, text=True, check=True).stdout) if live_scores else {}
+    ko_args = [f"{ronde}:{i}={s}" for ronde, perIdx in ko_scores.items()
+               for i, s in perIdx.items()]
+    ko_preds = json.loads(subprocess.run(
+        ["node", "-e", _LIVE_KO_PRED_JS, *ko_args],
+        cwd=REPO_DIR, capture_output=True, text=True, check=True).stdout) if ko_args else {}
 
     wedstrijden = []
     for mid, score in live_scores.items():
@@ -633,9 +714,25 @@ def run_live() -> str:
             "uitslag_telt": "thuis" if h > a else "uit" if a > h else "gelijk",
             "voorspellers": preds.get(mid, []),
         })
+    for ronde, perIdx in ko_scores.items():
+        for i, score in perIdx.items():
+            sleutel = f"{ronde}:{i}"
+            h, a = (int(x) for x in score.split("-"))
+            wedstrijden.append({
+                "id": sleutel, "ronde": ronde,
+                "thuis": meta[sleutel]["thuis"], "uit": meta[sleutel]["uit"],
+                "status": meta[sleutel]["status"], "minuut": meta[sleutel]["minuut"],
+                "score": score,
+                "uitslag_telt": "thuis" if h > a else "uit" if a > h else "gelijk",
+                "voorspellers": ko_preds.get(sleutel, []),
+            })
 
     officieel = {s["naam"]: s["totaal"] for s in _stand()}
-    env = {**os.environ, "STAND_OVERLAY": json.dumps(live_scores)}
+    env = {**os.environ}
+    if live_scores:
+        env["STAND_OVERLAY"] = json.dumps(live_scores)
+    if ko_scores:
+        env["STAND_OVERLAY_KO"] = json.dumps(ko_scores)
     virt = json.loads(subprocess.run(["node", str(REPO_DIR / "bereken_stand.js")],
                                      cwd=REPO_DIR, capture_output=True, text=True,
                                      check=True, env=env).stdout)
@@ -1848,12 +1945,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Het haalt verse uitslagen uit de football API en draait bereken_stand.js.
 # Niemand in de groep kan hiermee data laten aanpassen — alleen een berekening triggeren.
 
-def _verse_overlay(include_live: bool) -> tuple[dict, dict]:
-    """Haalt verse groepsuitslagen uit de football API. Read-only: schrijft niets
-    naar data.js. include_live=False → alleen afgelopen (FT) wedstrijden; True →
-    ook lopende wedstrijden. Geeft (overlay_scores, meta) terug."""
+def _verse_overlay(include_live: bool) -> tuple[dict, dict, dict]:
+    """Haalt verse uitslagen uit de football API. Read-only: schrijft niets naar
+    data.js. include_live=False → alleen afgelopen (FT) wedstrijden; True → ook
+    lopende. Geeft (groep_overlay, ko_overlay, meta) terug. Groep-overlay is
+    {matchId:"thuis-uit"}, KO-overlay is {ronde:{index:"thuis-uit"}} (90-min stand)."""
     by_pair = _group_match_pairs()
-    overlay, meta = {}, {}
+    ko_pair = _ko_bracket_pairs()
+    overlay, ko_overlay, meta = {}, {}, {}
     for d in (date.today(), date.today() - timedelta(days=1)):
         data = _football_api("fixtures", {"league": WC_LEAGUE_ID,
                                           "season": WC_SEASON, "date": str(d)})
@@ -1865,13 +1964,24 @@ def _verse_overlay(include_live: bool) -> tuple[dict, dict]:
             home = EN_TO_NL.get(f["teams"]["home"]["name"])
             away = EN_TO_NL.get(f["teams"]["away"]["name"])
             paar = by_pair.get((home, away))
-            gh, ga = f["goals"]["home"], f["goals"]["away"]
-            if not paar or gh is None:
-                continue  # KO-wedstrijd, onbekend team of nog geen score
-            mid, flip = paar
-            overlay[mid] = f"{ga}-{gh}" if flip else f"{gh}-{ga}"
-            meta[mid] = {"thuis": home, "uit": away, "live": is_live}
-    return overlay, meta
+            if paar:
+                gh, ga = f["goals"]["home"], f["goals"]["away"]
+                if gh is None:
+                    continue
+                mid, flip = paar
+                overlay[mid] = f"{ga}-{gh}" if flip else f"{gh}-{ga}"
+                meta[mid] = {"thuis": home, "uit": away, "live": is_live}
+                continue
+            kpaar = ko_pair.get((home, away))
+            if kpaar:
+                ronde, i, flip = kpaar
+                kgh, kga = _ko_90min_goals(f)  # 90-min stand, niet verlenging
+                if kgh is None:
+                    continue
+                ko_overlay.setdefault(ronde, {})[i] = f"{kga}-{kgh}" if flip else f"{kgh}-{kga}"
+                meta[f"{ronde}:{i}"] = {"thuis": home, "uit": away, "live": is_live}
+            # anders: onbekend team / niet in een bracket → overslaan
+    return overlay, ko_overlay, meta
 
 
 def _bouw_stand_bericht(include_live: bool) -> str:
@@ -1880,15 +1990,19 @@ def _bouw_stand_bericht(include_live: bool) -> str:
     include_live bepaalt /stand (alleen afgelopen) vs /virtuelestand (ook live)."""
     officieel = {s["naam"]: s["totaal"] for s in _stand()}
 
-    overlay, meta = {}, {}
+    overlay, ko_overlay, meta = {}, {}, {}
     if FOOTBALL_API_KEY:
         try:
-            overlay, meta = _verse_overlay(include_live)
+            overlay, ko_overlay, meta = _verse_overlay(include_live)
         except Exception as e:
             log.error(f"stand overlay-fout (val terug op officiële stand): {e}")
 
-    if overlay:
-        env = {**os.environ, "STAND_OVERLAY": json.dumps(overlay)}
+    if overlay or ko_overlay:
+        env = {**os.environ}
+        if overlay:
+            env["STAND_OVERLAY"] = json.dumps(overlay)
+        if ko_overlay:
+            env["STAND_OVERLAY_KO"] = json.dumps(ko_overlay)
         stand = json.loads(subprocess.run(
             ["node", str(REPO_DIR / "bereken_stand.js")],
             cwd=REPO_DIR, capture_output=True, text=True, check=True, env=env).stdout)

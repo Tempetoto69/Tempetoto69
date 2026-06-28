@@ -18,6 +18,21 @@ if (process.env.STAND_OVERLAY) {
   } catch (e) { /* kapotte overlay negeren */ }
 }
 
+// Idem voor KO-wedstrijden via env STAND_OVERLAY_KO (JSON {ronde:{index:"thuis-uit"}}).
+// De index is de bracket-slot binnen die ronde. Zo telt een lopende KO-wedstrijd mee
+// in de virtuele stand, net als groepswedstrijden.
+if (process.env.STAND_OVERLAY_KO) {
+  try {
+    const ko = JSON.parse(process.env.STAND_OVERLAY_KO);
+    for (const [ronde, perIndex] of Object.entries(ko)) {
+      if (!Array.isArray(UITSLAGEN.ko.results[ronde])) UITSLAGEN.ko.results[ronde] = [];
+      for (const [i, score] of Object.entries(perIndex)) {
+        UITSLAGEN.ko.results[ronde][Number(i)] = score;
+      }
+    }
+  } catch (e) { /* kapotte overlay negeren */ }
+}
+
 function parseScore(s) {
   if (!s || typeof s !== 'string' || !s.includes('-')) return null;
   const [h, a] = s.split('-').map(x => parseInt(x, 10));
