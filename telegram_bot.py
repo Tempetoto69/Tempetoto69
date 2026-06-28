@@ -89,7 +89,9 @@ VERSIE_NOTITIES  = {
             "of al afgevoerd). mij opvragen doe je met /kees, al weten jullie wat daar staat. de "
             "commando's staan nu ook in het /-menu en /help geeft de volledige lijst. en los "
             "daarvan: de doorgangers en de hele knockout-fase (affiches + uitslagen) verwerk ik nu "
-            "automatisch, met na elke KO-wedstrijd een recap. kale berekening, ik raak er niks aan aan.",
+            "automatisch, met na elke KO-wedstrijd een recap. en ja, ik vul ook m'n eigen "
+            "KO-voorspellingen vanzelf in — netjes vóór de aftrap, dus geen vals spel. kale "
+            "berekening, ik raak er niks aan aan.",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
@@ -2759,6 +2761,93 @@ def _ko_sync_nodig() -> bool:
         return False
 
 
+def _ko_kickoffs() -> dict:
+    """FIFA-matchnr -> aftraptijd (NL) uit de knockout-sectie van wedstrijden.json."""
+    out = {}
+    try:
+        ko = json.loads(SCHEDULE_FILE.read_text()).get("knockout", {})
+        for ronde in ko.values():
+            for w in ronde:
+                try:
+                    out[w["nr"]] = datetime.strptime(
+                        f"{w['datum']} {w['tijd']}", "%Y-%m-%d %H:%M").replace(tzinfo=_TZ)
+                except Exception:
+                    pass
+    except Exception as e:
+        log.error(f"_ko_kickoffs: {e}")
+    return out
+
+
+def _kees_ko_te_voorspellen() -> list:
+    """Slots (ronde, idx, home, away) die onthuld zijn, nog niet begonnen en waar
+    AI Kees nog GEEN voorspelling heeft. Eerlijkheidsregel: alleen toekomstige aftrap."""
+    brackets = _ko_brackets_nu()
+    landen = _landen()
+    kees_ko = (_huidige_ko_per_deelnemer().get("AI Kees", {}) or {})
+    kickoffs = _ko_kickoffs()
+    now = datetime.now(_TZ)
+    todo = []
+    for rnd, ln in _KO_LENGTHS.items():
+        arr = brackets.get(rnd, [])
+        kees_arr = (list(kees_ko.get(rnd, []) or []) + [""] * ln)[:ln]
+        for i, slot in enumerate(arr):
+            h, a = slot.get("home"), slot.get("away")
+            if h not in landen or a not in landen:
+                continue  # ronde nog niet onthuld
+            ko_t = kickoffs.get(KO_TREE[rnd][i][2])
+            if not ko_t or ko_t <= now:
+                continue  # al begonnen / geen tijd bekend -> niet meer voorspellen (geen vals spel)
+            if kees_arr[i]:
+                continue  # al voorspeld
+            todo.append((rnd, i, h, a))
+    return todo
+
+
+def genereer_kees_ko() -> str | None:
+    """Laat AI Kees zijn eigen KO-voorspellingen invullen voor onthulde, nog niet
+    begonnen wedstrijden. Idempotent (vult alleen lege slots), schrijft via dezelfde
+    veilige route. Geeft een korte samenvatting of None."""
+    todo = _kees_ko_te_voorspellen()
+    if not todo:
+        return None
+    lijst = "\n".join(f"{n + 1}. {h} - {a}" for n, (_, _, h, a) in enumerate(todo))
+    user = (
+        "Voorspel als AI Kees de uitslag NA 90 MINUTEN van deze knockout-wedstrijden "
+        "(een gelijkspel mag — dan zou je in gedachten de verlenging ingaan). Geef een "
+        "realistische score in jouw stijl: contrair maar onderbouwd, geen onzin-uitslagen. "
+        "Je poule-keuzes voor de consistentie: kampioen Frankrijk, verrassing Zwitserland "
+        "(je thuisland, je gunt het een diepe run), deceptie Duitsland. Antwoord met "
+        "UITSLUITEND een JSON-array, één item per wedstrijd: "
+        "[{\"home\":\"..\",\"away\":\"..\",\"score\":\"x-y\"}].\n\nWedstrijden:\n" + lijst
+    )
+    raw = _call_chat_llm(system=SYSTEM_PROMPT, messages=[{"role": "user", "content": user}], tools=[])
+    try:
+        a, b = raw.index("["), raw.rindex("]")
+        entries = json.loads(raw[a:b + 1])
+    except Exception as e:
+        log.error(f"genereer_kees_ko: JSON niet leesbaar ({e}): {raw[:200]}")
+        return None
+
+    todo_idx = {frozenset((h, a)): (rnd, i, h, a) for (rnd, i, h, a) in todo}
+    updates = {}
+    for e in entries:
+        h2, a2, sc = e.get("home"), e.get("away"), e.get("score")
+        m = re.match(r"^\s*(\d+)\s*-\s*(\d+)\s*$", str(sc or ""))
+        key = frozenset((h2, a2)) if h2 and a2 else None
+        if not m or key not in todo_idx:
+            continue
+        rnd, i, h, a = todo_idx[key]
+        ga, gb = m.group(1), m.group(2)
+        score = f"{ga}-{gb}" if h2 == h else f"{gb}-{ga}"
+        updates.setdefault("AI Kees", {}).setdefault(rnd, {})[i] = score
+    if not updates.get("AI Kees"):
+        return None
+    if _schrijf_ko_voorspellingen(updates) is None:
+        return None
+    aantal = sum(len(rd) for rd in updates["AI Kees"].values())
+    return f"{aantal} wedstrijden"
+
+
 def _push_data(commit_msg: str) -> None:
     """Commit + push data.js (GitHub Pages deploy). Doet niets als er niets wijzigde."""
     subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.name", "Tempetoto Agent"], check=True)
@@ -3152,6 +3241,14 @@ async def run_check_uitslagen():
             # (de groeps-check hieronder doet een vroege return zodra de groepsfase klaar is).
             await meld_ronde_winnaar()
             await meld_dode_kampioenen()
+
+    # AI Kees vult zijn eigen KO-voorspellingen aan zodra een ronde onthuld is en de
+    # wedstrijden nog niet begonnen zijn. Eigen goedkope gate (alleen LLM bij werk),
+    # los van de sync-gate zodat dit ook nú (R32 onthuld, gate dicht) gebeurt.
+    kees_sam = genereer_kees_ko()
+    if kees_sam:
+        _push_data(f"Update voorspellingen: AI Kees KO ({kees_sam})")
+        log.info(f"AI Kees KO-voorspellingen ingevuld: {kees_sam}")
 
     if not _klaar_te_checken():
         log.info("Check uitslagen: niets te checken.")

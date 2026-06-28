@@ -117,6 +117,11 @@ uitslag, wie door is (`advancer`) en — als iemand het voorspeld had — wie er
 uitgeschakelde kampioenen (`meld_dode_kampioenen`) worden in de KO-fase óók vanuit deze
 sync-tak gemeld (de groeps-check doet een vroege return zodra de groepsfase klaar is).
 Topscorers en kaarten blijven bij de dagelijkse 08:00-update (Sonnet); champion/finalist ook.
+**AI Kees vult zijn eigen KO-voorspellingen automatisch in** (`genereer_kees_ko`, eigen tak in
+de kwartiercheck): zodra een ronde onthuld is voorspelt hij in karakter (Venice/Kimi) elke
+nog-niet-begonnen wedstrijd, via dezelfde veilige schrijfroute als de DM-invoer. Eerlijkheids-
+regel: alleen wedstrijden met aftrap in de toekomst (`_kees_ko_te_voorspellen`), idempotent
+(vult enkel lege slots). Zo voorspelt hij nooit ná een uitslag.
 
 ### ✅ 4. Telegram-bot + AI Kees (in productie)
 Draait als systemd service `tempetoto-bot` (chat-modus, polling).
