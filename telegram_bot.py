@@ -2631,6 +2631,69 @@ def _match_recap(ids: list[str]) -> list[dict]:
         return []
 
 
+# Per nieuw afgeloten KO-wedstrijd: uitslag (na 90'), wie door is (komt in een
+# latere ronde-bracket voor) en wie er punten pakte (KO-scoring per ronde).
+_KO_RECAP_JS = """
+const d=require('./data.js');
+const reeds=new Set(process.argv.slice(1));
+const u=d.UITSLAGEN, KO=d.KO_ROUNDS, alle=Object.values(d.GROUPS).flat();
+const parse=s=>{if(!s||typeof s!=='string'||!s.includes('-'))return null;
+  const[a,b]=s.split('-').map(Number);return isNaN(a)||isNaN(b)?null:[a,b];};
+const toto=(h,a)=>h>a?1:h<a?-1:0;
+const ord={R32:0,R16:1,KF:2,HF:3,F:4};
+const later=key=>{const s=new Set();for(const r of KO)if(ord[r.key]>ord[key])
+  for(const sl of (u.ko.brackets[r.key]||[])){s.add(sl.home);s.add(sl.away);}return s;};
+const out=[];
+for(const r of KO){
+  const br=u.ko.brackets[r.key]||[], res=u.ko.results[r.key]||[], L=later(r.key);
+  br.forEach((slot,i)=>{
+    const rr=parse(res[i]); if(!rr) return;
+    if(!alle.includes(slot.home)||!alle.includes(slot.away)) return;
+    const id=r.key+'-'+i; if(reeds.has(id)) return;
+    const adv=L.has(slot.home)?slot.home:L.has(slot.away)?slot.away:null;
+    const v=[];
+    for(const n of d.DEELNEMERS){
+      const p=parse(((d.VOORSPELLINGEN[n].ko||{})[r.key]||[])[i]); if(!p) continue;
+      const t=toto(p[0],p[1])===toto(rr[0],rr[1]), e=p[0]===rr[0]&&p[1]===rr[1];
+      let pts=0; if(t)pts+=r.toto; if(e)pts+=r.exact;
+      v.push({naam:n,voorspelling:`${p[0]}-${p[1]}`,toto:t,exact:e,punten:pts});
+    }
+    v.sort((a,b)=>b.punten-a.punten);
+    out.push({key:r.key,ronde:r.naam,id,home:slot.home,away:slot.away,
+      uitslag:`${rr[0]}-${rr[1]}`,advancer:adv,voorspellers:v});
+  });
+}
+console.log(JSON.stringify(out));
+"""
+
+
+def _ko_gevulde_ids() -> set:
+    """IDs (bv. 'R32-0') van KO-wedstrijden die nú al een uitslag hebben."""
+    try:
+        out = subprocess.run(
+            ["node", "-e",
+             "const d=require('./data.js');const p=s=>typeof s==='string'&&s.includes('-');"
+             "const o=[];for(const r of d.KO_ROUNDS)(d.UITSLAGEN.ko.results[r.key]||[])"
+             ".forEach((s,i)=>{if(p(s))o.push(r.key+'-'+i)});"
+             "process.stdout.write(JSON.stringify(o))"],
+            cwd=str(REPO_DIR), capture_output=True, text=True, check=True)
+        return set(json.loads(out.stdout))
+    except Exception as e:
+        log.error(f"_ko_gevulde_ids mislukt: {e}")
+        return set()
+
+
+def _ko_match_recap(reeds: set) -> list[dict]:
+    """Recap van KO-wedstrijden met een uitslag die nog niet in `reeds` zat."""
+    try:
+        result = subprocess.run(["node", "-e", _KO_RECAP_JS, *sorted(reeds)],
+                                cwd=REPO_DIR, capture_output=True, text=True, check=True)
+        return json.loads(result.stdout)
+    except Exception as e:
+        log.error(f"_ko_match_recap mislukt: {e}")
+        return []
+
+
 def _recap_opdracht(recap: list[dict], oude_stand: list[dict], nieuwe_stand: list[dict],
                     oude_leiders: list[str], nieuwe_leiders: list[str]) -> str:
     """Bouwt de prompt voor Kees' na-wedstrijd-recap: wie voorspelde goed (exact =
@@ -2678,6 +2741,47 @@ def _recap_opdracht(recap: list[dict], oude_stand: list[dict], nieuwe_stand: lis
         "(2-4 zinnen): noem wie het goed voorspelde, geef een EXACT goede toto een eervolle "
         "vermelding, en zeg kort wat het met de stand doet. Wees je bewust van de stand — wie "
         "loopt uit, wie klimt. Gaat het over jezelf: geniet ervan. Over Smit: je weet wat je doet.\n\n"
+        f"Wedstrijden: {' '.join(regels)}\n"
+        f"Stand nu (top 5): {top5}.\n"
+        + (f"Koppositie: {leider_ctx}\n" if leider_ctx else "")
+    )
+
+
+def _ko_recap_opdracht(recap: list[dict], oude_stand: list[dict], nieuwe_stand: list[dict],
+                       oude_leiders: list[str], nieuwe_leiders: list[str]) -> str:
+    """Prompt voor Kees' na-KO-wedstrijd-recap: uitslag (na 90'), wie door is, en —
+    als iemand het voorspeld had — wie er punten pakte."""
+    oud_r = {s["naam"]: s["rank"] for s in oude_stand}
+    regels = []
+    for w in recap:
+        kop = f"{w['ronde']}: {w['home']}-{w['away']} werd {w['uitslag']} (na 90 min)"
+        if w.get("advancer"):
+            kop += f", {w['advancer']} door"
+        kop += "."
+        scoorders = [v for v in w["voorspellers"] if v["punten"] > 0]
+        if scoorders:
+            delen = [f"{v['naam']} ({v['voorspelling']}, "
+                     f"{'EXACT goed' if v['exact'] else 'toto'}, +{v['punten']})"
+                     for v in scoorders]
+            kop += " Punten: " + ", ".join(delen) + "."
+        regels.append(kop)
+
+    top5 = "; ".join(
+        f"{s['rank']}. {s['naam']} {s['totaal']}p"
+        + (f" (was {oud_r[s['naam']]}e)" if oud_r.get(s["naam"]) not in (None, s["rank"]) else "")
+        for s in nieuwe_stand[:5]
+    )
+    leider_ctx = ""
+    if len(nieuwe_leiders) == 1 and nieuwe_leiders != oude_leiders:
+        leider_ctx = f"{nieuwe_leiders[0]} grijpt de koppositie (was {' en '.join(oude_leiders)})."
+
+    return (
+        "Er zijn knockout-uitslagen verwerkt (stand na 90 minuten; de winnaar gaat door naar de "
+        "volgende ronde). Maak als AI Kees één levendig berichtje voor de groep (2-4 zinnen): noem "
+        "de uitslag en welk land door is, plus een eventuele stunt. Had iemand het voorspeld, geef "
+        "de punten en een EXACT goede toto een eervolle vermelding; had niemand het voorspeld, "
+        "negeer dat en focus op de wedstrijd zelf. Wees je bewust van de stand. Over jezelf: "
+        "genieten. Over Smit: je weet wat je doet.\n\n"
         f"Wedstrijden: {' '.join(regels)}\n"
         f"Stand nu (top 5): {top5}.\n"
         + (f"Koppositie: {leider_ctx}\n" if leider_ctx else "")
@@ -2819,11 +2923,35 @@ async def run_check_uitslagen():
     # KO-fase: doorgangers + brackets/uitslagen deterministisch syncen uit de API.
     # Eigen goedkope gate; draait los van de groeps-check hieronder.
     if _ko_sync_nodig():
+        oude_stand = _stand()
+        reeds = _ko_gevulde_ids()
         samenvatting = sync_advancers_en_ko()
         if samenvatting:
             _push_data(f"Update KO/doorgangers: {samenvatting}")
             bewaar_stand_snapshot()
             log.info(f"KO-sync verwerkt: {samenvatting}")
+
+            # Na elke nieuw afgeloten KO-wedstrijd een recap (zoals bij groepswedstrijden).
+            recap = _ko_match_recap(reeds)
+            if recap and BOT_TOKEN and API_KEY:
+                nieuwe_stand = _stand()
+                opdracht = _ko_recap_opdracht(recap, oude_stand, nieuwe_stand,
+                                              _leiders(oude_stand), _leiders(nieuwe_stand))
+                reply = _call_chat_llm(
+                    system=SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": opdracht}],
+                    tools=[],
+                )
+                if reply:
+                    await Bot(token=BOT_TOKEN).send_message(chat_id=CHAT_ID, text=reply)
+                    geschiedenis.append(f"AI Kees: {reply}")
+                    _save_history()
+                    log.info(f"KO-recap gepost: {reply}")
+
+            # Segment-winnaars + uitgeschakelde kampioenen ook in de KO-fase melden
+            # (de groeps-check hieronder doet een vroege return zodra de groepsfase klaar is).
+            await meld_ronde_winnaar()
+            await meld_dode_kampioenen()
 
     if not _klaar_te_checken():
         log.info("Check uitslagen: niets te checken.")

@@ -111,6 +111,11 @@ bracket-boom staat als `KO_TREE` in de code (FIFA M73-M104). Idempotent & self-h
 elke run opnieuw afgeleid, write alleen bij wijziging (valideer_data.js + rollback), dan push.
 Regels: **punten = stand na 90 min** (`score.fulltime`); **doorgang = echte winnaar** (API
 winner-vlag, dus penalty's tellen voor de bracket maar niet voor de scorepunten).
+Na elke nieuw afgeloten KO-wedstrijd post Kees een recap (zoals bij groepswedstrijden):
+uitslag, wie door is (`advancer`) en — als iemand het voorspeld had — wie er punten pakte
+(`_ko_match_recap` + `_ko_recap_opdracht`). Segment-winnaars (`meld_ronde_winnaar`) en
+uitgeschakelde kampioenen (`meld_dode_kampioenen`) worden in de KO-fase óók vanuit deze
+sync-tak gemeld (de groeps-check doet een vroege return zodra de groepsfase klaar is).
 Topscorers en kaarten blijven bij de dagelijkse 08:00-update (Sonnet); champion/finalist ook.
 
 ### ✅ 4. Telegram-bot + AI Kees (in productie)
