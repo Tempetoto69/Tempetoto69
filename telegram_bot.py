@@ -34,7 +34,7 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, C
 
 load_dotenv(Path(__file__).parent / '.env')
 
-VERSIE           = "3.04"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
+VERSIE           = "3.05"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
 # Korte changelog per versie. Bij een nieuwe versie kondigt Kees dit beknopt aan in de groep
 # (1x per versie, bij opstart). Geen notitie = geen aankondiging.
 VERSIE_NOTITIES  = {
@@ -92,6 +92,11 @@ VERSIE_NOTITIES  = {
             "automatisch, met na elke KO-wedstrijd een recap. en ja, ik vul ook m'n eigen "
             "KO-voorspellingen vanzelf in — netjes vóór de aftrap, dus geen vals spel. kale "
             "berekening, ik raak er niks aan aan.",
+    "3.05": "kleine maar belangrijke correctie in de knockout-telling. voorspel je een gelijkspel na "
+            "90 minuten, dan moet je er voortaan bij zeggen welk land doorgaat. komt het echt tot een "
+            "gelijkspel, dan krijg je de toto-punten alleen als jouw doorgaander ook daadwerkelijk "
+            "doorgaat (na verlenging of penalty's). de punten voor de exacte uitslag krijg je los "
+            "daarvan gewoon bij de juiste 90-minutenstand. zo hoort het, en zo reken ik het nu af.",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
@@ -1507,10 +1512,12 @@ def _landen() -> set:
 
 
 def _huidige_ko_per_deelnemer() -> dict:
+    """{naam: {"ko": {...scores...}, "door": {...voorspelde doorgaanders...}}}."""
     out = subprocess.run(
         ["node", "-e",
          "const d=require('./data.js');const o={};"
-         "for(const n of d.DEELNEMERS)o[n]=(d.VOORSPELLINGEN[n]||{}).ko||{};"
+         "for(const n of d.DEELNEMERS){const v=d.VOORSPELLINGEN[n]||{};"
+         "o[n]={ko:v.ko||{},door:v.ko_door||{}};}"
          "process.stdout.write(JSON.stringify(o))"],
         cwd=str(REPO_DIR), capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
@@ -1523,10 +1530,13 @@ def _parse_ko_tekst(tekst: str) -> list[dict]:
     system = (
         "Je bent een strikte parser voor KO-voorspellingen van een voetbalpoule. Je krijgt tekst "
         "van de beheerder met voorspelde uitslagen van deelnemers voor knockout-wedstrijden. "
-        "Haal er een JSON-array uit: [{\"naam\":..,\"team_a\":..,\"team_b\":..,\"score\":\"x-y\"}].\n"
+        "Haal er een JSON-array uit: [{\"naam\":..,\"team_a\":..,\"team_b\":..,\"score\":\"x-y\",\"door\":\"..\"}].\n"
         f"- naam = exact één van: {', '.join(deelnemers)}. Normaliseer (bv. 'giezen'->'Giezen').\n"
         f"- team_a/team_b = exact één van deze landen (normaliseer spelling/Engels->Nederlands): {', '.join(landen)}.\n"
         "- score = 'doelpunten_team_a-doelpunten_team_b', in de volgorde zoals geschreven.\n"
+        "- door = ALLEEN bij een voorspeld gelijkspel én als er een doorgaander genoemd is "
+        "(bv. 'Canada-Zuid-Afrika 1-1 (Zuid-Afrika)' of '... Zuid-Afrika door'): zet daar het land "
+        "(exact, een van team_a/team_b). Anders laat 'door' weg of leeg.\n"
         "- Een kopregel met een naam (bv. 'Giezen:' of 'Giezen R32') geldt voor de regels eronder "
         "tot een nieuwe naam verschijnt.\n"
         "- Negeer alles wat geen duidelijke uitslag-voorspelling is. Verzin niets, gok geen landen.\n"
@@ -1541,8 +1551,10 @@ def _parse_ko_tekst(tekst: str) -> list[dict]:
         return []
 
 
-def _verwerk_ko_invoer(tekst: str) -> tuple[dict, list, list]:
-    """Parseert + matcht teams -> bracket-slot. Geeft (updates, matched, onmatched)."""
+def _verwerk_ko_invoer(tekst: str) -> tuple[dict, list, list, list]:
+    """Parseert + matcht teams -> bracket-slot. Geeft (updates, matched, onmatched, missing).
+    updates[naam][rnd][idx] = (score, doorgaander). 'missing' = gelijkspel-voorspellingen
+    waarvoor nog een doorgaander nodig is (naam, rnd, idx, home, away, score)."""
     brackets, landen = _ko_brackets_nu(), _landen()
     slotidx = {}
     for rnd in _KO_LENGTHS:
@@ -1552,7 +1564,7 @@ def _verwerk_ko_invoer(tekst: str) -> tuple[dict, list, list]:
                 slotidx[frozenset((h, a))] = (rnd, idx, h, a)
 
     deelnemers = set(_deelnemers())
-    updates, matched, onmatched = {}, [], []
+    updates, matched, onmatched, missing = {}, [], [], []
     for e in _parse_ko_tekst(tekst):
         naam, ta, tb, sc = e.get("naam"), e.get("team_a"), e.get("team_b"), e.get("score")
         m = re.match(r"^\s*(\d+)\s*-\s*(\d+)\s*$", str(sc or ""))
@@ -1563,30 +1575,45 @@ def _verwerk_ko_invoer(tekst: str) -> tuple[dict, list, list]:
         rnd, idx, h, a = slotidx[key]
         ga, gb = m.group(1), m.group(2)
         score = f"{ga}-{gb}" if ta == h else f"{gb}-{ga}"
-        updates.setdefault(naam, {}).setdefault(rnd, {})[idx] = score
-        matched.append((naam, rnd, h, a, score))
-    return updates, matched, onmatched
+        door = ""
+        if ga == gb:  # voorspeld gelijkspel: doorgaander nodig
+            d = e.get("door")
+            door = h if d == h else a if d == a else ""
+            if not door:
+                missing.append((naam, rnd, idx, h, a, score))
+                continue  # nog niet opslaan; Kees vraagt erom
+        updates.setdefault(naam, {}).setdefault(rnd, {})[idx] = (score, door)
+        matched.append((naam, rnd, h, a, score, door))
+    return updates, matched, onmatched, missing
 
 
 def _schrijf_ko_voorspellingen(updates: dict) -> str | None:
-    """Mergt updates in een idempotent beheerd blok in data.js; validatie + rollback."""
+    """Mergt updates (score + voorspelde doorgaander) in een idempotent beheerd blok in
+    data.js; validatie + rollback. updates[naam][rnd][idx] = (score, doorgaander)."""
     huidig = _huidige_ko_per_deelnemer()
     merged = {}
     for naam in set(list(huidig) + list(updates)):
-        ko = huidig.get(naam, {}) or {}
-        rnd_arrs = {}
+        cur = huidig.get(naam, {}) or {}
+        ko, dr = cur.get("ko", {}) or {}, cur.get("door", {}) or {}
+        ko_arrs, dr_arrs = {}, {}
         for rnd, ln in _KO_LENGTHS.items():
-            arr = (list(ko.get(rnd, []) or []) + [""] * ln)[:ln]
-            for idx, score in updates.get(naam, {}).get(rnd, {}).items():
-                arr[int(idx)] = score
-            rnd_arrs[rnd] = arr
-        if any(any(x for x in rnd_arrs[r]) for r in _KO_LENGTHS):
-            merged[naam] = rnd_arrs
+            sa = (list(ko.get(rnd, []) or []) + [""] * ln)[:ln]
+            da = (list(dr.get(rnd, []) or []) + [""] * ln)[:ln]
+            for idx, (score, door) in updates.get(naam, {}).get(rnd, {}).items():
+                sa[int(idx)] = score
+                da[int(idx)] = door or ""
+            ko_arrs[rnd], dr_arrs[rnd] = sa, da
+        if any(any(x for x in ko_arrs[r]) for r in _KO_LENGTHS):
+            merged[naam] = {"ko": ko_arrs, "door": dr_arrs}
 
     lines = [_KO_MARK_START]
     for naam in sorted(merged):
-        body = ",".join(f"{r}:{json.dumps(merged[naam][r], ensure_ascii=False)}" for r in _KO_LENGTHS)
-        lines.append(f"VOORSPELLINGEN[{json.dumps(naam, ensure_ascii=False)}].ko = {{{body}}};")
+        nj = json.dumps(naam, ensure_ascii=False)
+        ko_body = ",".join(f"{r}:{json.dumps(merged[naam]['ko'][r], ensure_ascii=False)}" for r in _KO_LENGTHS)
+        lines.append(f"VOORSPELLINGEN[{nj}].ko = {{{ko_body}}};")
+        if any(any(x for x in merged[naam]["door"][r]) for r in _KO_LENGTHS):
+            dr_body = ",".join(f"{r}:{json.dumps(merged[naam]['door'][r], ensure_ascii=False)}" for r in _KO_LENGTHS)
+            lines.append(f"VOORSPELLINGEN[{nj}].ko_door = {{{dr_body}}};")
     lines.append(_KO_MARK_END)
     blok = "\n".join(lines)
 
@@ -1610,8 +1637,9 @@ def _schrijf_ko_voorspellingen(updates: dict) -> str | None:
 
 def _ko_samenvatting(matched: list, onmatched: list) -> str:
     per = {}
-    for naam, rnd, h, a, score in matched:
-        per.setdefault(naam, []).append(f"  {rnd:<4} {h}-{a}: {score}")
+    for (naam, rnd, h, a, score, door) in matched:
+        extra = f"  → {door} door" if door else ""
+        per.setdefault(naam, []).append(f"  {rnd:<4} {h}-{a}: {score}{extra}")
     delen = [f"Herkend ({len(matched)} voorspellingen):"]
     for naam in sorted(per):
         delen.append(naam + ":")
@@ -1625,16 +1653,48 @@ def _ko_samenvatting(matched: list, onmatched: list) -> str:
     return "\n".join(delen)
 
 
+def _vraag_doorgaanders(missing: list) -> str:
+    regels = [f"  {naam}: {h}-{a} ({score})" for (naam, _, _, h, a, score) in missing]
+    return ("Bij een voorspeld gelijkspel moet je aangeven wie er doorgaat (na verlenging/"
+            "penalty's). Nog nodig voor:\n" + "\n".join(regels) +
+            "\n\nStuur de doorgaande landen (bijv. 'Zuid-Afrika, Brazilië').")
+
+
+def _resolve_missing(missing: list, tekst: str) -> tuple[list, list]:
+    """Koppelt in `tekst` genoemde landen aan de openstaande gelijkspellen.
+    Geeft (opgelost [(naam,rnd,idx,h,a,score,door)], nog_open)."""
+    laag = _strip_accent(tekst)
+    opgelost, nog = [], []
+    for (naam, rnd, idx, h, a, score) in missing:
+        hh, aa = _strip_accent(h) in laag, _strip_accent(a) in laag
+        if hh and not aa:
+            opgelost.append((naam, rnd, idx, h, a, score, h))
+        elif aa and not hh:
+            opgelost.append((naam, rnd, idx, h, a, score, a))
+        else:
+            nog.append((naam, rnd, idx, h, a, score))
+    return opgelost, nog
+
+
 async def handle_floris_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Privé-DM van Floris: KO-voorspellingen aanleveren (parse -> bevestig -> opslaan)."""
+    """Privé-DM van Floris: KO-voorspellingen aanleveren (parse -> doorgaanders -> bevestig -> opslaan)."""
     msg = update.message
     if not msg or not msg.text or msg.from_user.id != FLORIS_ID:
         return
     loop = asyncio.get_event_loop()
     tekst = msg.text.strip()
     low = tekst.lower()
+    pending = _pending_ko.get(msg.chat_id)
 
-    if low in ("ja", "opslaan", "bevestig", "ok", "oke", "oké") and msg.chat_id in _pending_ko:
+    if low in ("nee", "annuleer", "cancel", "stop") and pending:
+        _pending_ko.pop(msg.chat_id)
+        await msg.reply_text("Geannuleerd, niets opgeslagen.")
+        return
+
+    if low in ("ja", "opslaan", "bevestig", "ok", "oke", "oké") and pending:
+        if pending.get("missing"):
+            await msg.reply_text("Eerst nog even de doorgaanders.\n\n" + _vraag_doorgaanders(pending["missing"]))
+            return
         upd = _pending_ko.pop(msg.chat_id)["updates"]
         ok = await loop.run_in_executor(None, _schrijf_ko_voorspellingen, upd)
         if ok:
@@ -1643,23 +1703,33 @@ async def handle_floris_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await msg.reply_text("Opslaan mislukt bij de validatie — niets gewijzigd. Check de invoer.")
         return
-    if low in ("nee", "annuleer", "cancel", "stop") and msg.chat_id in _pending_ko:
-        _pending_ko.pop(msg.chat_id)
-        await msg.reply_text("Geannuleerd, niets opgeslagen.")
+
+    # Lopende vraag om doorgaanders: vat dit bericht op als antwoord daarop.
+    if pending and pending.get("missing"):
+        opgelost, nog = _resolve_missing(pending["missing"], tekst)
+        for (naam, rnd, idx, h, a, score, door) in opgelost:
+            pending["updates"].setdefault(naam, {}).setdefault(rnd, {})[idx] = (score, door)
+            pending["matched"].append((naam, rnd, h, a, score, door))
+        pending["missing"] = nog
+        if nog:
+            await msg.reply_text("Genoteerd. Nog open:\n\n" + _vraag_doorgaanders(nog))
+        else:
+            await msg.reply_text(_ko_samenvatting(pending["matched"], pending.get("onmatched", [])))
         return
 
+    # Nieuwe invoer parsen.
     stop_event = asyncio.Event()
     typing = asyncio.create_task(keep_typing(context.bot, msg.chat_id, stop_event))
     try:
-        updates, matched, onmatched = await loop.run_in_executor(None, _verwerk_ko_invoer, tekst)
+        updates, matched, onmatched, missing = await loop.run_in_executor(None, _verwerk_ko_invoer, tekst)
     except Exception as e:
         log.error(f"handle_floris_dm parse-fout: {e}")
-        updates, matched, onmatched = {}, [], []
+        updates, matched, onmatched, missing = {}, [], [], []
     finally:
         stop_event.set()
         await typing
 
-    if not matched:
+    if not matched and not missing:
         hint = ("Ik herkende geen KO-voorspellingen. Stuur ze per deelnemer, bijv.:\n"
                 "Giezen:\nZuid-Afrika-Canada 2-1\nDuitsland-Paraguay 1-0")
         if onmatched:
@@ -1667,8 +1737,13 @@ async def handle_floris_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text(hint)
         return
 
-    _pending_ko[msg.chat_id] = {"updates": updates}
-    await msg.reply_text(_ko_samenvatting(matched, onmatched))
+    _pending_ko[msg.chat_id] = {"updates": updates, "matched": matched,
+                                "onmatched": onmatched, "missing": missing}
+    if missing:
+        intro = (_ko_samenvatting(matched, onmatched) + "\n\n") if matched else ""
+        await msg.reply_text(intro + _vraag_doorgaanders(missing))
+    else:
+        await msg.reply_text(_ko_samenvatting(matched, onmatched))
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2589,11 +2664,11 @@ def _bereken_advancers_en_ko() -> dict | None:
         if key:
             by_round.setdefault(key, []).append(f)
 
-    winners, brackets, results = {}, {}, {}
+    winners, brackets, results, door = {}, {}, {}, {}
     for key in KO_VOLGORDE:
         api = by_round.get(key, [])
         used = set()
-        b_slots, r_slots, any_res = [], [], False
+        b_slots, r_slots, d_slots, any_res, any_door = [], [], [], False, False
         for i, (hs, as_, m) in enumerate(KO_TREE[key]):
             hr = _resolve_spec(hs, top2, winners)
             ar = _resolve_spec(as_, top2, winners)
@@ -2601,11 +2676,13 @@ def _bereken_advancers_en_ko() -> dict | None:
             if fx is None:
                 b_slots.append((hs, as_, m, None, None))
                 r_slots.append(None)
+                d_slots.append("")
                 continue
             ht, at = nl(fx["teams"]["home"]["name"]), nl(fx["teams"]["away"]["name"])
             if ht is None or at is None:
                 b_slots.append((hs, as_, m, None, None))
                 r_slots.append(None)
+                d_slots.append("")
                 continue
             other = lambda known: at if ht == known else ht
             if hr:
@@ -2616,7 +2693,7 @@ def _bereken_advancers_en_ko() -> dict | None:
                 home_team, away_team = ht, at
             b_slots.append((hs, as_, m, home_team, away_team))
 
-            res = None
+            res, win = None, None
             if fx["fixture"]["status"]["short"] in _KLAAR_STATUS:
                 ftc = fx["score"]["fulltime"]
                 if ftc and ftc["home"] is not None:
@@ -2633,10 +2710,13 @@ def _bereken_advancers_en_ko() -> dict | None:
                         win = ht if fgh > fga else at
                 if win:
                     winners[(key, i)] = win
+                    any_door = True
             r_slots.append(res)
+            d_slots.append(win or "")
         brackets[key] = b_slots
         results[key] = r_slots if any_res else []
-    return {"advancers": advancers, "brackets": brackets, "results": results}
+        door[key] = d_slots if any_door else []
+    return {"advancers": advancers, "brackets": brackets, "results": results, "door": door}
 
 
 def _advancers_literal(advancers: dict) -> str:
@@ -2645,7 +2725,7 @@ def _advancers_literal(advancers: dict) -> str:
     return "{ top2:{" + t + "}, best3:" + json.dumps(advancers["best3"], ensure_ascii=False) + " }"
 
 
-def _ko_literal(brackets: dict, results: dict) -> str:
+def _ko_literal(brackets: dict, results: dict, door: dict) -> str:
     L = ["{", "    brackets:{"]
     for key in KO_VOLGORDE:
         L.append(f"      {key}:[")
@@ -2659,7 +2739,10 @@ def _ko_literal(brackets: dict, results: dict) -> str:
         L.append("      ],")
     L.append("    },")
     res = ",".join(f"{key}:{json.dumps(results[key], ensure_ascii=False)}" for key in KO_VOLGORDE)
-    L.append("    results:{" + res + "}")
+    L.append("    results:{" + res + "},")
+    # door = wie er per KO-duel echt doorging (na verlenging/penalty's); voor de toto bij gelijkspel
+    dr = ",".join(f"{key}:{json.dumps(door[key], ensure_ascii=False)}" for key in KO_VOLGORDE)
+    L.append("    door:{" + dr + "}")
     L.append("  }")
     return "\n".join(L)
 
@@ -2705,7 +2788,7 @@ def sync_advancers_en_ko() -> str | None:
                                     _advancers_literal(berekend["advancers"]), anchor)
     anchor = nieuw.index("const UITSLAGEN = {")
     nieuw = _vervang_obj_waarde(nieuw, "ko",
-                                _ko_literal(berekend["brackets"], berekend["results"]),
+                                _ko_literal(berekend["brackets"], berekend["results"], berekend["door"]),
                                 nieuw.index("advancers", anchor))
 
     if nieuw == src:
@@ -2783,7 +2866,7 @@ def _kees_ko_te_voorspellen() -> list:
     AI Kees nog GEEN voorspelling heeft. Eerlijkheidsregel: alleen toekomstige aftrap."""
     brackets = _ko_brackets_nu()
     landen = _landen()
-    kees_ko = (_huidige_ko_per_deelnemer().get("AI Kees", {}) or {})
+    kees_ko = ((_huidige_ko_per_deelnemer().get("AI Kees", {}) or {}).get("ko", {}) or {})
     kickoffs = _ko_kickoffs()
     now = datetime.now(_TZ)
     todo = []
@@ -2818,7 +2901,9 @@ def genereer_kees_ko() -> str | None:
         "Je poule-keuzes voor de consistentie: kampioen Frankrijk, verrassing Zwitserland "
         "(je thuisland, je gunt het een diepe run), deceptie Duitsland. Antwoord met "
         "UITSLUITEND een JSON-array, één item per wedstrijd: "
-        "[{\"home\":\"..\",\"away\":\"..\",\"score\":\"x-y\"}].\n\nWedstrijden:\n" + lijst
+        "[{\"home\":\"..\",\"away\":\"..\",\"score\":\"x-y\",\"door\":\"..\"}]. Voorspel je een "
+        "GELIJKSPEL, zet dan in 'door' welk land na verlenging/penalty's doorgaat (een van de twee); "
+        "bij een beslissende score laat je 'door' leeg.\n\nWedstrijden:\n" + lijst
     )
     raw = _call_chat_llm(system=SYSTEM_PROMPT, messages=[{"role": "user", "content": user}], tools=[])
     try:
@@ -2839,7 +2924,11 @@ def genereer_kees_ko() -> str | None:
         rnd, i, h, a = todo_idx[key]
         ga, gb = m.group(1), m.group(2)
         score = f"{ga}-{gb}" if h2 == h else f"{gb}-{ga}"
-        updates.setdefault("AI Kees", {}).setdefault(rnd, {})[i] = score
+        door = ""
+        if ga == gb:  # gelijkspel: doorgaander kiezen (val terug op thuisteam als Kees niets geeft)
+            d = e.get("door")
+            door = h if d == h else a if d == a else h
+        updates.setdefault("AI Kees", {}).setdefault(rnd, {})[i] = (score, door)
     if not updates.get("AI Kees"):
         return None
     if _schrijf_ko_voorspellingen(updates) is None:
@@ -2935,21 +3024,25 @@ const later=key=>{const s=new Set();for(const r of KO)if(ord[r.key]>ord[key])
 const out=[];
 for(const r of KO){
   const br=u.ko.brackets[r.key]||[], res=u.ko.results[r.key]||[], L=later(r.key);
+  const rdoorArr=(u.ko.door||{})[r.key]||[];
   br.forEach((slot,i)=>{
     const rr=parse(res[i]); if(!rr) return;
     if(!alle.includes(slot.home)||!alle.includes(slot.away)) return;
     const id=r.key+'-'+i; if(reeds.has(id)) return;
-    const adv=L.has(slot.home)?slot.home:L.has(slot.away)?slot.away:null;
+    const rdoor=rdoorArr[i]||(L.has(slot.home)?slot.home:L.has(slot.away)?slot.away:null);
     const v=[];
     for(const n of d.DEELNEMERS){
       const p=parse(((d.VOORSPELLINGEN[n].ko||{})[r.key]||[])[i]); if(!p) continue;
-      const t=toto(p[0],p[1])===toto(rr[0],rr[1]), e=p[0]===rr[0]&&p[1]===rr[1];
+      const pdoor=((d.VOORSPELLINGEN[n].ko_door||{})[r.key]||[])[i];
+      const dp=toto(p[0],p[1]), dr=toto(rr[0],rr[1]);
+      let t; if(dp!==dr)t=false; else if(dp===0)t=!!pdoor&&pdoor===rdoor; else t=true;
+      const e=p[0]===rr[0]&&p[1]===rr[1];
       let pts=0; if(t)pts+=r.toto; if(e)pts+=r.exact;
       v.push({naam:n,voorspelling:`${p[0]}-${p[1]}`,toto:t,exact:e,punten:pts});
     }
     v.sort((a,b)=>b.punten-a.punten);
     out.push({key:r.key,ronde:r.naam,id,home:slot.home,away:slot.away,
-      uitslag:`${rr[0]}-${rr[1]}`,advancer:adv,voorspellers:v});
+      uitslag:`${rr[0]}-${rr[1]}`,advancer:rdoor,voorspellers:v});
   });
 }
 console.log(JSON.stringify(out));

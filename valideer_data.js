@@ -155,12 +155,18 @@ for (const tc of GROEP_CASES) {
 }
 if (groepOk) ok(`scoreGroup: alle ${GROEP_CASES.length} testcases correct`);
 
-// KO scoretest
-function scoreKo(pred, res, totoP, exactP) {
+// KO scoretest — identieke logica als bereken_stand.js. Bij een voorspeld gelijkspel
+// dat ook gelijk eindigde beslist de doorgaander (predDoor vs realDoor) over de toto.
+function scoreKo(pred, res, totoP, exactP, predDoor, realDoor) {
     const p = parseScore(pred), r = parseScore(res);
     if (!p || !r) return 0;
-    if (toto(p[0], p[1]) !== toto(r[0], r[1])) return 0;
-    let pts = totoP;
+    const dp = toto(p[0], p[1]), dr = toto(r[0], r[1]);
+    let totoGoed;
+    if (dp !== dr) totoGoed = false;
+    else if (dp === 0) totoGoed = !!predDoor && predDoor === realDoor;
+    else totoGoed = true;
+    let pts = 0;
+    if (totoGoed) pts += totoP;
     if (p[0] === r[0] && p[1] === r[1]) pts += exactP;
     return pts;
 }
@@ -170,11 +176,19 @@ const KO_CASES = [
     { pred: '2-1', res: '2-1', verwacht: 8, label: 'R32 exact (2-1 vs 2-1)' },
     { pred: '3-0', res: '2-1', verwacht: 5, label: 'R32 toto (3-0 vs 2-1)' },
     { pred: '0-2', res: '2-1', verwacht: 0, label: 'R32 fout (0-2 vs 2-1)' },
+    // Gelijkspel-voorspelling: doorgaander beslist over de toto
+    { pred: '1-1', res: '1-1', pdoor: 'Canada', rdoor: 'Canada', verwacht: 8, label: 'gelijk exact + doorgaander goed' },
+    { pred: '1-1', res: '1-1', pdoor: 'Zuid-Afrika', rdoor: 'Canada', verwacht: 3, label: 'gelijk exact, doorgaander fout (jouw voorbeeld)' },
+    { pred: '2-2', res: '1-1', pdoor: 'Canada', rdoor: 'Canada', verwacht: 5, label: 'gelijk toto + doorgaander goed, niet exact' },
+    { pred: '2-2', res: '1-1', pdoor: 'Zuid-Afrika', rdoor: 'Canada', verwacht: 0, label: 'gelijk, doorgaander fout, niet exact' },
+    { pred: '1-1', res: '1-1', pdoor: '', rdoor: 'Canada', verwacht: 3, label: 'gelijk voorspeld zonder doorgaander → geen toto' },
+    { pred: '2-1', res: '1-1', pdoor: '', rdoor: 'Canada', verwacht: 0, label: 'winst voorspeld maar werd gelijk → 0' },
+    { pred: '1-1', res: '2-1', pdoor: 'Canada', rdoor: '', verwacht: 0, label: 'gelijk voorspeld maar werd winst → 0' },
 ];
 
 let koOk = true;
 for (const tc of KO_CASES) {
-    const score = scoreKo(tc.pred, tc.res, R32.toto, R32.exact);
+    const score = scoreKo(tc.pred, tc.res, R32.toto, R32.exact, tc.pdoor, tc.rdoor);
     if (score !== tc.verwacht) {
         fout(`scoreKo: ${tc.label}`, `verwacht ${tc.verwacht}, kreeg ${score}`);
         koOk = false;

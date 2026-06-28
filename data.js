@@ -161,7 +161,7 @@ const SPELREGELS = [
 // ---- Puntentelling (label, uitleg) ----
 const PUNTENTELLING = [
   ["Groepswedstrijden:","Een goede 'toto' (winst, gelijkspel of verlies) levert 3 punten op. Goede uitslag +2 pt."],
-  ["Knock-outrondes:","Goede 'toto' [en goede uitslag]: R32 5 [+3], R16 7 [+4], KF 9 [+5], HF 11 [+6], F 13 [+7] pt. NB: voorspel de winnaar indien gelijk na 90 min. Uitslag na 90 min telt voor de puntentelling."],
+  ["Knock-outrondes:","Goede 'toto' [en goede uitslag]: R32 5 [+3], R16 7 [+4], KF 9 [+5], HF 11 [+6], F 13 [+7] pt. Alles op de stand na 90 min. Voorspel je een gelijkspel, geef dan aan welk land doorgaat: alleen als jouw doorgaander ook echt doorgaat (na verlenging/penalty's) krijg je de toto-punten — de exacte-uitslag-punten krijg je sowieso bij de juiste 90-min score."],
   ["Doorgaan (top-2):","Per goed voorspeld land dat als 1e of 2e doorgaat: 3 punten."],
   ["Beste nummers 3:","Per goed voorspelde nummer 3 die doorgaat: 3 punten (8 plekken)."],
   ["Kampioen:","Voorspeld land verliezend finalist: 16 punten. Kampioen: 40 punten."],
@@ -179,7 +179,8 @@ const PUNTENTELLING = [
 //   group:    { "A1":"2-1", ... }  (matchId -> "thuis-uit", leeg "" = nog niet)
 //   top2:     { A:["land","land"], ... }  voorspelde 1e+2e per groep
 //   best3:    ["land", ...]  voorspelde 8 beste nummers 3
-//   ko:       { R32:["2-1",...], R16:[...], ... } uitslag na 90'
+//   ko:       { R32:["2-1",...], R16:[...], ... } voorspelde uitslag na 90'
+//   ko_door:  { R32:["land",...], ... } bij voorspeld gelijkspel: gekozen doorgaander
 // ============================================================
 const DEELNEMERS = [
   "EJ","Floris","Daniel","Giezen","Huttenhuis","Mark","Pieter","Slotboom","Smit","AI Kees"
@@ -189,7 +190,7 @@ const DEELNEMERS = [
 function leegVoorspelling(){
   return {
     prematch:{champion:"",finalist_predicted:"",surprise:"",deception:"",topscorer:"",topscorerGoals:"",totalGoals:"",yellow:"",red:""},
-    group:{}, top2:{}, best3:[], ko:{R32:[],R16:[],KF:[],HF:[],F:[]},
+    group:{}, top2:{}, best3:[], ko:{R32:[],R16:[],KF:[],HF:[],F:[]}, ko_door:{R32:[],R16:[],KF:[],HF:[],F:[]},
   };
 }
 
@@ -1725,7 +1726,8 @@ const UITSLAGEN = {
         {home:"W HF-1", away:"W HF-2"}, // M104
       ],
     },
-    results:{R32:[],R16:[],KF:[],HF:[],F:[]}
+    results:{R32:[],R16:[],KF:[],HF:[],F:[]},
+    door:{R32:[],R16:[],KF:[],HF:[],F:[]}  // wie er echt doorging (na verlenging/penalty's)
   },
   facts:{ compleet:false, champion:"", finalist:"", topscorers:["Messi","Mbappé","O. Dembélé"], topscorerGoals:5, totalGoals:215, yellow:172, red:10},
 };
