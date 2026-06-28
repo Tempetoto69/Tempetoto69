@@ -6,5 +6,7 @@ geposte_updates.json
 geposte_prematch.json
 chat_history.json
 facts_state.json
+kees_geheugen.json
+kees_deelnemers.json
 __pycache__/
 .aider*

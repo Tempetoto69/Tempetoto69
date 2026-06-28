@@ -29,12 +29,12 @@ from collections import deque
 
 from dotenv import load_dotenv
 import anthropic
-from telegram import Update, Bot
+from telegram import Update, Bot, BotCommand
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes
 
 load_dotenv(Path(__file__).parent / '.env')
 
-VERSIE           = "3.03"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
+VERSIE           = "3.04"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
 # Korte changelog per versie. Bij een nieuwe versie kondigt Kees dit beknopt aan in de groep
 # (1x per versie, bij opstart). Geen notitie = geen aankondiging.
 VERSIE_NOTITIES  = {
@@ -82,6 +82,13 @@ VERSIE_NOTITIES  = {
             "('wie ligt op koers', met staafjes). en voor de duidelijkheid: die seizoensgokken "
             "(goals/kaarten/topscorer) tellen pas mee in de stand als het toernooi erop zit — geen "
             "punten meer cadeau op basis van halve cijfers. ik reken pas af als de finale gefloten is.",
+    "3.04": "voor wie te lui is om de site te openen, twee nieuwe commando's. /laatste (of /recent): "
+            "wie pakte hoeveel punten per wedstrijd van vandaag — niks gespeeld, dan die van gisteren. "
+            "en /jouwnaam: typ /giezen, /smit, /floris enzovoort en ik geef een samenvatting van die "
+            "deelnemer — recente vorm en prematch-gokken met de status erbij (kampioen nog in de race "
+            "of al afgevoerd). mij opvragen doe je met /kees, al weten jullie wat daar staat. de "
+            "commando's staan nu ook in het /-menu en /help geeft de volledige lijst. kale "
+            "berekening, ik raak er niks aan aan.",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
@@ -110,6 +117,10 @@ HISTORY_FILE  = REPO_DIR / 'chat_history.json'
 PREMATCH_FILE = REPO_DIR / 'geposte_prematch.json'
 HIST_FILE     = REPO_DIR / 'stand_historie.json'
 GEHEUGEN_FILE = REPO_DIR / 'kees_geheugen.json'
+
+# Per-deelnemer chat-commando -> poule-naam (bv. "giezen"->"Giezen", "kees"->"AI Kees").
+# Wordt in main() gevuld uit data.js; cmd_speler leest hieruit.
+SPELER_MAP: dict[str, str] = {}
 
 FOOTBALL_API_BASE = 'https://v3.football.api-sports.io'
 WC_LEAGUE_ID      = 1
@@ -1228,6 +1239,16 @@ def ai_kees_versie_update() -> str:
     )
 
 
+async def _on_startup(app) -> None:
+    """post_init-hook: zet het /-commandomenu en kondig daarna eventueel de versie aan."""
+    try:
+        await app.bot.set_my_commands([BotCommand(c, d) for c, d in BOT_COMMAND_MENU])
+        log.info("Commando-menu (set_my_commands) bijgewerkt.")
+    except Exception as e:
+        log.error(f"set_my_commands faalde: {e}")
+    await announce_versie(app)
+
+
 async def announce_versie(app) -> None:
     """Post bij opstart één keer per nieuwe versie een korte changelog (post_init-hook)."""
     if not BOT_TOKEN or not API_KEY:
@@ -1723,6 +1744,209 @@ async def cmd_gelekaarten(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_rodekaarten(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _post_seizoensstat(update, context, "red", "\U0001F7E5", "Rode kaarten")
+
+
+# ── /laatste + /<naam>: deterministische speler/wedstrijd-overzichten ──────────
+# Net als /stand: read-only, raakt de LLM nooit aan en schrijft niets. Niemand kan
+# hiermee data laten wijzigen — alleen bestaande uitslagen/voorspellingen tonen.
+
+async def _post_readonly(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                         label: str, bouw_fn) -> None:
+    """Gedeeld pad voor de read-only overzichts-commando's: typing-indicator,
+    bouw het bericht in een thread, post het. bouw_fn is een callable -> str."""
+    msg = update.message
+    if not msg or msg.chat_id != CHAT_ID:
+        return
+    naam = msg.from_user.first_name if msg.from_user else "iemand"
+    log.info(f"{label} getriggerd door {naam}")
+    loop = asyncio.get_event_loop()
+    stop_event = asyncio.Event()
+    typing_task = asyncio.create_task(keep_typing(context.bot, msg.chat_id, stop_event))
+    try:
+        bericht = await loop.run_in_executor(None, bouw_fn)
+    except Exception as e:
+        log.error(f"{label} fout: {e}")
+        bericht = "Kon dat even niet ophalen. Probeer zo nog eens."
+    finally:
+        stop_event.set()
+        await typing_task
+    await msg.reply_text(bericht, parse_mode="HTML")
+    log.info(f"{label} gepost.")
+
+
+def _recente_recap() -> tuple[list[dict], str | None]:
+    """Recap van afgelopen groepswedstrijden van vandaag; is er vandaag nog niets
+    gespeeld, dan die van gisteren. Geeft (recap, datumlabel) of ([], None)."""
+    try:
+        schedule = json.loads(SCHEDULE_FILE.read_text()).get("groepsfase", {})
+    except Exception as e:
+        log.error(f"_recente_recap schema-fout: {e}")
+        return [], None
+    for d in (date.today(), date.today() - timedelta(days=1)):
+        ids = [mid for mid, info in schedule.items() if info.get("datum") == str(d)]
+        # _match_recap filtert zelf wedstrijden zonder uitslag eruit.
+        recap = _match_recap(ids) if ids else []
+        if recap:
+            label = "vandaag" if d == date.today() else "gisteren"
+            return recap, f"{label} ({d})"
+    return [], None
+
+
+def _bouw_laatste_bericht() -> str:
+    recap, label = _recente_recap()
+    if not recap:
+        return ("\U0001F4C5 <b>Punten per wedstrijd</b>\n"
+                "Nog geen afgespeelde groepswedstrijden vandaag of gisteren.")
+    blokken = []
+    for w in recap:
+        kop = f"{w['home']}-{w['away']}  {w['uitslag']}"
+        scoorders = [v for v in w["voorspellers"] if v["punten"] > 0]
+        if scoorders:
+            regels = [f"  {v['naam']:<11}{v['voorspelling']:<5}"
+                      f"{'exact' if v['exact'] else 'toto':<6}+{v['punten']}"
+                      for v in scoorders]
+            blokken.append(kop + "\n" + "\n".join(regels))
+        else:
+            blokken.append(kop + "\n  (niemand punten)")
+    kopregel = f"\U0001F4C5 <b>Punten per wedstrijd — {label}</b>"
+    return kopregel + "\n<pre>" + html.escape("\n\n".join(blokken)) + "</pre>"
+
+
+# Prematch-keuzes + status van één deelnemer. 'leeft' = nog niet definitief
+# uitgeschakeld (zelfde semantiek als stillAlive() op de site / _KAMPIOEN_JS).
+_SPELER_JS = """
+const d=require('./data.js');
+const naam=process.argv[1];
+const u=d.UITSLAGEN, alle=Object.values(d.GROUPS).flat();
+const gevuld=k=>{const br=u.ko.brackets[k]||[];return br.length>0&&br.every(x=>alle.includes(x.home)&&alle.includes(x.away));};
+const bereikt=l=>{let r=null;for(const k of ['R32','R16','KF','HF','F'])if((u.ko.brackets[k]||[]).some(x=>x.home===l||x.away===l))r=k;return u.facts.champion===l?'WIN':r;};
+const leeft=l=>{if(!l)return null;if(u.facts.champion)return u.facts.champion===l;const r=bereikt(l);const v=r==null?'R32':{R32:'R16',R16:'KF',KF:'HF',HF:'F'}[r];return !v?true:!gevuld(v);};
+const pm=(d.VOORSPELLINGEN[naam]||{}).prematch||{};
+console.log(JSON.stringify({
+  champion:pm.champion||null, championLeeft:leeft(pm.champion),
+  surprise:pm.surprise||null, surpriseLeeft:leeft(pm.surprise),
+  deception:pm.deception||null, deceptionLeeft:leeft(pm.deception),
+  topscorer:pm.topscorer||null, topscorerGoals:pm.topscorerGoals,
+  totalGoals:pm.totalGoals, yellow:pm.yellow, red:pm.red
+}));
+"""
+
+
+def _bouw_speler_bericht(naam: str) -> str:
+    stand = _stand()
+    rij = next((s for s in stand if s["naam"] == naam), None)
+    if not rij:
+        return f"Geen data voor {html.escape(naam)}."
+
+    info = json.loads(subprocess.run(["node", "-e", _SPELER_JS, naam], cwd=REPO_DIR,
+                                     capture_output=True, text=True, check=True).stdout)
+
+    # Recente vorm: punten van de laatst-complete speelronde (1-3 per groep).
+    vorm = None
+    try:
+        ronden = json.loads(_ronde_punten())
+        compleet = [(int(k.split()[-1]), v) for k, v in ronden.items()
+                    if k.startswith("speelronde") and v.get("compleet")]
+        if compleet:
+            n, v = max(compleet, key=lambda x: x[0])
+            punten = v.get("punten", {})
+            mijn = punten.get(naam, 0)
+            top = max(punten.values()) if punten else 0
+            besten = [p for p, x in punten.items() if x == top]
+            vorm = (f"Speelronde {n}: +{mijn} punten"
+                    + (f"  (ronde-top: {top}, {', '.join(besten)})" if top else ""))
+    except Exception as e:
+        log.error(f"speler vorm fout: {e}")
+
+    def status(leeft):
+        return "nog in de race" if leeft else "uitgeschakeld" if leeft is False else "?"
+
+    piraat = " \U0001F3F4‍☠️" if naam == "AI Kees" else ""
+    delen = [f"\U0001F464 <b>{html.escape(naam)}</b>{piraat}",
+             f"{rij['rank']}e plaats · {rij['totaal']} punten"]
+    if vorm:
+        delen.append(f"\n<b>Recente vorm</b>\n{html.escape(vorm)}")
+
+    keuzes = ["\n<b>Prematch-gokken</b>"]
+    if info.get("champion"):
+        keuzes.append(f"\U0001F3C6 Kampioen: {html.escape(info['champion'])} — {status(info['championLeeft'])}")
+    if info.get("surprise"):
+        keuzes.append(f"\U0001F3B2 Verrassing: {html.escape(info['surprise'])} — {status(info['surpriseLeeft'])}")
+    if info.get("deception"):
+        keuzes.append(f"\U0001F4A9 Deceptie: {html.escape(info['deception'])} — {status(info['deceptionLeeft'])}")
+    if info.get("topscorer"):
+        g = info.get("topscorerGoals")
+        keuzes.append(f"⚽ Topscorer: {html.escape(info['topscorer'])}"
+                      + (f" ({g} goals)" if g is not None else ""))
+    seizoen = []
+    if info.get("totalGoals") is not None: seizoen.append(f"goals {info['totalGoals']}")
+    if info.get("yellow") is not None:     seizoen.append(f"geel {info['yellow']}")
+    if info.get("red") is not None:        seizoen.append(f"rood {info['red']}")
+    if seizoen:
+        keuzes.append("Seizoen: " + " · ".join(seizoen))
+
+    return "\n".join(delen + keuzes)
+
+
+async def cmd_laatste(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/laatste (alias /recent) — punten per afgelopen wedstrijd van vandaag/gisteren."""
+    await _post_readonly(update, context, "/laatste", _bouw_laatste_bericht)
+
+
+async def cmd_speler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/<naam> — samenvatting van één deelnemer (recente vorm + prematch + status)."""
+    msg = update.message
+    if not msg or not msg.text:
+        return
+    cmd = msg.text.split()[0].lstrip("/").split("@")[0].lower()
+    naam = SPELER_MAP.get(cmd)
+    if not naam:
+        return
+    await _post_readonly(update, context, f"/{cmd}", lambda: _bouw_speler_bericht(naam))
+
+
+def _speler_cmd(naam: str) -> str:
+    """Telegram-commando voor een deelnemer: /giezen, /smit, /kees (= AI Kees)."""
+    return "kees" if naam == "AI Kees" else naam.lower().replace(" ", "")
+
+
+# Commando's die in Telegram's /-autocomplete-menu verschijnen (set_my_commands).
+# De 10 speler-commando's laat ik bewust uit het menu (zou het vol zetten); /help
+# legt ze uit en ze blijven gewoon werken.
+BOT_COMMAND_MENU = [
+    ("stand",        "Tussenstand (verse uitslagen)"),
+    ("virtuelestand", "Stand incl. lopende wedstrijden"),
+    ("laatste",      "Punten per wedstrijd (vandaag/gisteren)"),
+    ("totaalgoals",  "Totaal goals: stand + wie zit dichtbij"),
+    ("gelekaarten",  "Gele kaarten: stand + voorspellingen"),
+    ("rodekaarten",  "Rode kaarten: stand + voorspellingen"),
+    ("help",         "Overzicht van alle commando's"),
+]
+
+
+def _help_tekst() -> str:
+    spelers = ", ".join("/" + c for c in sorted(SPELER_MAP)) or "/&lt;jenaam&gt;"
+    return (
+        "\U0001F3F4‍☠️ <b>Commando's</b>\n"
+        "<b>/stand</b> — tussenstand (verse uitslagen)\n"
+        "<b>/virtuelestand</b> — stand inclusief lopende wedstrijden\n"
+        "<b>/laatste</b> (of /recent) — punten per wedstrijd van vandaag/gisteren\n"
+        "<b>/totaalgoals</b> (of /doelpunten), <b>/gelekaarten</b>, <b>/rodekaarten</b> — "
+        "seizoenscijfers + wie zit met z'n voorspelling dichtbij\n"
+        f"<b>/jenaam</b> — samenvatting van een deelnemer (recente vorm + prematch-gokken). "
+        f"Beschikbaar: {spelers}\n"
+        "<b>/help</b> — dit overzicht\n\n"
+        "Kale berekening: ik raak er niks aan aan."
+    )
+
+
+async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/help — statisch overzicht van alle commando's (read-only)."""
+    msg = update.message
+    if not msg or msg.chat_id != CHAT_ID:
+        return
+    log.info("/help getriggerd")
+    await msg.reply_text(_help_tekst(), parse_mode="HTML")
 
 
 # ── Pre-match preview ─────────────────────────────────────────────────────────
@@ -2414,12 +2638,21 @@ def main():
         sys.exit(1)
 
     app = (Application.builder().token(BOT_TOKEN).concurrent_updates(True)
-           .post_init(announce_versie).build())
+           .post_init(_on_startup).build())
     app.add_handler(CommandHandler("stand", cmd_stand, filters=filters.Chat(CHAT_ID)))
     app.add_handler(CommandHandler("virtuelestand", cmd_virtuelestand, filters=filters.Chat(CHAT_ID)))
     app.add_handler(CommandHandler(["totaalgoals", "doelpunten"], cmd_totaalgoals, filters=filters.Chat(CHAT_ID)))
     app.add_handler(CommandHandler("gelekaarten", cmd_gelekaarten, filters=filters.Chat(CHAT_ID)))
     app.add_handler(CommandHandler("rodekaarten", cmd_rodekaarten, filters=filters.Chat(CHAT_ID)))
+    app.add_handler(CommandHandler(["laatste", "recent"], cmd_laatste, filters=filters.Chat(CHAT_ID)))
+    app.add_handler(CommandHandler("help", cmd_help, filters=filters.Chat(CHAT_ID)))
+    try:
+        SPELER_MAP.update({_speler_cmd(s["naam"]): s["naam"] for s in _stand()})
+    except Exception as e:
+        log.error(f"Speler-commando's niet geladen: {e}")
+    if SPELER_MAP:
+        app.add_handler(CommandHandler(list(SPELER_MAP), cmd_speler, filters=filters.Chat(CHAT_ID)))
+        log.info(f"Speler-commando's actief: {', '.join('/' + c for c in SPELER_MAP)}")
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & filters.Chat(CHAT_ID),
         handle_message,
