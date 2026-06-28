@@ -1676,51 +1676,49 @@ VOORSPELLINGEN["AI Kees"] = {
 // ============================================================
 const UITSLAGEN = {
   group:{"A1":"2-0","A2":"2-1","A3":"1-1","A4":"1-0","A5":"0-3","A6":"1-0","B1":"1-1","B2":"1-1","B3":"4-1","B4":"6-0","B5":"2-1","B6":"3-1","C1":"1-1","C2":"0-1","C3":"0-1","C4":"3-0","C5":"0-3","C6":"4-2","D1":"4-1","D2":"2-0","D3":"2-0","D4":"0-1","D5":"3-2","D6":"0-0","E1":"7-1","E2":"1-0","E3":"2-1","E4":"0-0","E5":"0-2","E6":"2-1","F1":"2-2","F2":"5-1","F3":"5-1","F4":"0-4","F5":"1-1","F6":"1-3","G1":"1-1","G2":"2-2","G3":"0-0","G4":"1-3","G5":"1-1","G6":"1-5","H1":"0-0","H2":"1-1","H3":"4-0","H4":"2-2","H5":"0-0","H6":"0-1","I1":"3-1","I2":"1-4","I3":"3-0","I4":"3-2","I5":"1-4","I6":"5-0","J1":"3-0","J2":"3-1","J3":"2-0","J4":"1-2","J5":"3-3","J6":"1-3","K1":"1-1","K2":"1-3","K3":"5-0","K4":"1-0","K5":"0-0","K6":"3-1","L1":"4-2","L2":"1-0","L3":"0-0","L4":"0-1","L5":"0-2","L6":"2-1"},                       // matchId -> "thuis-uit"
-  advancers:{ top2:{}, best3:[] },// werkelijk doorgegane landen
+  advancers:{ top2:{"A":["Mexico", "Zuid-Afrika"],"B":["Zwitserland", "Canada"],"C":["Brazilië", "Marokko"],"D":["Verenigde Staten", "Australië"],"E":["Duitsland", "Ivoorkust"],"F":["Nederland", "Japan"],"G":["België", "Egypte"],"H":["Spanje", "Kaapverdië"],"I":["Frankrijk", "Noorwegen"],"J":["Argentinië", "Oostenrijk"],"K":["Colombia", "Portugal"],"L":["Engeland", "Kroatië"]}, best3:["DR Congo", "Zweden", "Ghana", "Ecuador", "Bosnië-Herzegovina", "Algerije", "Paraguay", "Senegal"] },// werkelijk doorgegane landen
   ko:{
     brackets:{
       R32:[
-        // Volgorde = FIFA wedstrijdnummers 73-88
-        {home:"2A",  away:"2B"},               // M73
-        {home:"1E",  away:"3e (A/B/C/D/F)"},   // M74
-        {home:"1F",  away:"2C"},               // M75
-        {home:"1C",  away:"2F"},               // M76
-        {home:"1I",  away:"3e (C/D/F/G/H)"},   // M77
-        {home:"2E",  away:"2I"},               // M78
-        {home:"1A",  away:"3e (C/E/F/H/I)"},   // M79
-        {home:"1L",  away:"3e (E/H/I/J/K)"},   // M80
-        {home:"1D",  away:"3e (B/E/F/I/J)"},   // M81
-        {home:"1G",  away:"3e (A/E/H/I/J)"},   // M82
-        {home:"2K",  away:"2L"},               // M83
-        {home:"1H",  away:"2J"},               // M84
-        {home:"1B",  away:"3e (E/F/G/I/J)"},   // M85
-        {home:"1J",  away:"2H"},               // M86
-        {home:"1K",  away:"3e (D/E/I/J/L)"},   // M87
-        {home:"2D",  away:"2G"},               // M88
+        {home:"Zuid-Afrika", away:"Canada"}, // M73 (2A v 2B)
+        {home:"Duitsland", away:"Paraguay"}, // M74 (1E v 3e (A/B/C/D/F))
+        {home:"Nederland", away:"Marokko"}, // M75 (1F v 2C)
+        {home:"Brazilië", away:"Japan"}, // M76 (1C v 2F)
+        {home:"Frankrijk", away:"Zweden"}, // M77 (1I v 3e (C/D/F/G/H))
+        {home:"Ivoorkust", away:"Noorwegen"}, // M78 (2E v 2I)
+        {home:"Mexico", away:"Ecuador"}, // M79 (1A v 3e (C/E/F/H/I))
+        {home:"Engeland", away:"DR Congo"}, // M80 (1L v 3e (E/H/I/J/K))
+        {home:"Verenigde Staten", away:"Bosnië-Herzegovina"}, // M81 (1D v 3e (B/E/F/I/J))
+        {home:"België", away:"Senegal"}, // M82 (1G v 3e (A/E/H/I/J))
+        {home:"Portugal", away:"Kroatië"}, // M83 (2K v 2L)
+        {home:"Spanje", away:"Oostenrijk"}, // M84 (1H v 2J)
+        {home:"Zwitserland", away:"Algerije"}, // M85 (1B v 3e (E/F/G/I/J))
+        {home:"Argentinië", away:"Kaapverdië"}, // M86 (1J v 2H)
+        {home:"Colombia", away:"Ghana"}, // M87 (1K v 3e (D/E/I/J/L))
+        {home:"Australië", away:"Egypte"}, // M88 (2D v 2G)
       ],
       R16:[
-        // M89-96 — W = Winnaar R32 match N
-        {home:"W R32-2",  away:"W R32-5"},     // M89
-        {home:"W R32-1",  away:"W R32-3"},     // M90
-        {home:"W R32-4",  away:"W R32-6"},     // M91
-        {home:"W R32-7",  away:"W R32-8"},     // M92
-        {home:"W R32-11", away:"W R32-12"},    // M93
-        {home:"W R32-9",  away:"W R32-10"},    // M94
-        {home:"W R32-14", away:"W R32-16"},    // M95
-        {home:"W R32-13", away:"W R32-15"},    // M96
+        {home:"W R32-2", away:"W R32-5"}, // M89
+        {home:"W R32-1", away:"W R32-3"}, // M90
+        {home:"W R32-4", away:"W R32-6"}, // M91
+        {home:"W R32-7", away:"W R32-8"}, // M92
+        {home:"W R32-11", away:"W R32-12"}, // M93
+        {home:"W R32-9", away:"W R32-10"}, // M94
+        {home:"W R32-14", away:"W R32-16"}, // M95
+        {home:"W R32-13", away:"W R32-15"}, // M96
       ],
       KF:[
-        {home:"W R16-1", away:"W R16-2"},      // M97
-        {home:"W R16-5", away:"W R16-6"},      // M98
-        {home:"W R16-3", away:"W R16-4"},      // M99
-        {home:"W R16-7", away:"W R16-8"},      // M100
+        {home:"W R16-1", away:"W R16-2"}, // M97
+        {home:"W R16-5", away:"W R16-6"}, // M98
+        {home:"W R16-3", away:"W R16-4"}, // M99
+        {home:"W R16-7", away:"W R16-8"}, // M100
       ],
       HF:[
-        {home:"W KF-1", away:"W KF-2"},        // M101
-        {home:"W KF-3", away:"W KF-4"},        // M102
+        {home:"W KF-1", away:"W KF-2"}, // M101
+        {home:"W KF-3", away:"W KF-4"}, // M102
       ],
       F:[
-        {home:"W HF-1", away:"W HF-2"},        // M104
+        {home:"W HF-1", away:"W HF-2"}, // M104
       ],
     },
     results:{R32:[],R16:[],KF:[],HF:[],F:[]}
