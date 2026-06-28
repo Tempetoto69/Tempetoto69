@@ -101,7 +101,17 @@ pollt de football API alleen als er volgens `wedstrijden.json` een groepswedstri
 ná elke groepswedstrijd een recap (Haiku): wie voorspelde het goed (exact goede toto =
 eervolle vermelding) en wat het met de stand doet, met standbewustzijn (koploper loopt uit /
 voorsprong slinkt). Helpers `_match_recap` (punten per wedstrijd) + `_recap_opdracht`.
-KO-uitslagen, advancers, topscorers en kaarten blijven bij de dagelijkse 08:00-update (Sonnet).
+
+**Doorgangers + KO-fase (deterministisch, API-gedreven — geen LLM):** dezelfde kwartiercheck
+draait ook `sync_advancers_en_ko()` (eigen gate `_ko_sync_nodig`). Die leidt álles af uit de
+football API: groepsdoorgangers (`advancers.top2` + beste 8 nummers 3) uit `standings` (FIFA-
+tiebreakers al toegepast, incl. het 13e "Group Stage"-blok = ranglijst nummers 3), en per
+KO-ronde de affiches (`ko.brackets`) + uitslagen (`ko.results`) uit de fixtures. De vaste
+bracket-boom staat als `KO_TREE` in de code (FIFA M73-M104). Idempotent & self-healing:
+elke run opnieuw afgeleid, write alleen bij wijziging (valideer_data.js + rollback), dan push.
+Regels: **punten = stand na 90 min** (`score.fulltime`); **doorgang = echte winnaar** (API
+winner-vlag, dus penalty's tellen voor de bracket maar niet voor de scorepunten).
+Topscorers en kaarten blijven bij de dagelijkse 08:00-update (Sonnet); champion/finalist ook.
 
 ### ✅ 4. Telegram-bot + AI Kees (in productie)
 Draait als systemd service `tempetoto-bot` (chat-modus, polling).

@@ -2268,6 +2268,297 @@ def _ververs_facts() -> bool:
     return True
 
 
+# ── Doorgangers + KO-fase: deterministische API-sync ──────────────────────────
+# Eén reusable sync voor de héle KO-fase. Geen LLM, geen handwerk per ronde:
+#  - groepsdoorgangers (top2 + beste 8 nummers 3) uit de officiële standings
+#    (de API past alle FIFA-tiebreakers al toe, incl. fair-play/loting);
+#  - per KO-ronde de affiches (brackets) + uitslagen (results), uit de fixtures.
+# Idempotent & self-healing: elke run wordt alles opnieuw afgeleid uit standings +
+# fixtures + de vaste bracket-boom hieronder; alleen bij een echte wijziging volgt
+# een write (valideer_data.js + rollback) en push.
+#
+# Twee correctheidsregels:
+#  - PUNTEN tellen op de stand na 90 min (score.fulltime), nooit verlenging/penalty's;
+#  - DOORGANG naar de volgende ronde volgt de echte winnaar (API winner-vlag), zodat
+#    een op penalty's beslist duel toch het juiste land doorstuurt.
+
+# Vaste bracket-boom = exact de FIFA-volgorde M73-M104 (gelijk aan het oorspronkelijke
+# template in data.js). (home_spec, away_spec, fifa_matchnr). Specs: "1X"/"2X" = winnaar/
+# runner-up groep X; "3e (...)" = een nummer 3 (via fixtures opgelost); "W R32-2" = winnaar
+# van R32-slot 2 (1-based).
+KO_TREE = {
+    "R32": [("2A", "2B", 73), ("1E", "3e (A/B/C/D/F)", 74), ("1F", "2C", 75),
+            ("1C", "2F", 76), ("1I", "3e (C/D/F/G/H)", 77), ("2E", "2I", 78),
+            ("1A", "3e (C/E/F/H/I)", 79), ("1L", "3e (E/H/I/J/K)", 80),
+            ("1D", "3e (B/E/F/I/J)", 81), ("1G", "3e (A/E/H/I/J)", 82),
+            ("2K", "2L", 83), ("1H", "2J", 84), ("1B", "3e (E/F/G/I/J)", 85),
+            ("1J", "2H", 86), ("1K", "3e (D/E/I/J/L)", 87), ("2D", "2G", 88)],
+    "R16": [("W R32-2", "W R32-5", 89), ("W R32-1", "W R32-3", 90),
+            ("W R32-4", "W R32-6", 91), ("W R32-7", "W R32-8", 92),
+            ("W R32-11", "W R32-12", 93), ("W R32-9", "W R32-10", 94),
+            ("W R32-14", "W R32-16", 95), ("W R32-13", "W R32-15", 96)],
+    "KF":  [("W R16-1", "W R16-2", 97), ("W R16-5", "W R16-6", 98),
+            ("W R16-3", "W R16-4", 99), ("W R16-7", "W R16-8", 100)],
+    "HF":  [("W KF-1", "W KF-2", 101), ("W KF-3", "W KF-4", 102)],
+    "F":   [("W HF-1", "W HF-2", 104)],
+}
+KO_VOLGORDE = ["R32", "R16", "KF", "HF", "F"]
+# API-rondelabels -> onze sleutels
+RONDE_LABEL = {"Round of 32": "R32", "Round of 16": "R16",
+               "Quarter-finals": "KF", "Quarter-Finals": "KF",
+               "Semi-finals": "HF", "Semi-Finals": "HF", "Final": "F"}
+
+
+def _resolve_spec(spec: str, top2: dict, winners: dict):
+    """Lost een bracket-spec op naar een echt land, of None als nog onbekend."""
+    if not spec:
+        return None
+    if spec[0] == "1" and spec[1:] in top2:
+        return top2[spec[1:]][0]
+    if spec[0] == "2" and spec[1:] in top2:
+        return top2[spec[1:]][1]
+    if spec.startswith("3"):
+        return None  # nummer 3 — wordt via de fixture opgelost
+    m = re.match(r"W (R32|R16|KF|HF)-(\d+)", spec)
+    if m:
+        return winners.get((m.group(1), int(m.group(2)) - 1))
+    return None
+
+
+def _match_fixture(api: list, hr, ar, used: set, nl):
+    """Vindt de (ongebruikte) API-fixture die past bij de bekende kant(en) van een slot."""
+    for idx, fx in enumerate(api):
+        if idx in used:
+            continue
+        s = {nl(fx["teams"]["home"]["name"]), nl(fx["teams"]["away"]["name"])}
+        if None in s:
+            continue
+        ok = (s == {hr, ar}) if (hr and ar) else \
+             (hr in s) if hr else (ar in s) if ar else False
+        if ok:
+            used.add(idx)
+            return fx
+    return None
+
+
+def _bereken_advancers_en_ko() -> dict | None:
+    """Haalt standings + fixtures en leidt advancers + KO-brackets/results af.
+    Geeft {'advancers','brackets','results'} of None bij een API-/dataprobleem."""
+    if not FOOTBALL_API_KEY:
+        return None
+    nl = lambda en: EN_TO_NL.get(en)
+    try:
+        st = _football_api("standings", {"league": WC_LEAGUE_ID, "season": WC_SEASON})
+        groups = st["response"][0]["league"]["standings"]
+    except Exception as e:
+        log.error(f"KO-sync: standings ophalen mislukt: {e}")
+        return None
+
+    top2, thirds_block = {}, None
+    for g in groups:
+        if not g:
+            continue
+        label = g[0].get("group", "")
+        if label.startswith("Group ") and len(label) == 7 and label[6].isalpha():
+            letter = label[6]
+            w = next((r for r in g if r["rank"] == 1), None)
+            ru = next((r for r in g if r["rank"] == 2), None)
+            if w and ru:
+                top2[letter] = [nl(w["team"]["name"]), nl(ru["team"]["name"])]
+        else:
+            thirds_block = g  # 'Group Stage'-blok = ranglijst van de nummers 3
+    best3 = [nl(r["team"]["name"]) for r in sorted(thirds_block, key=lambda r: r["rank"])[:8]] \
+        if thirds_block else []
+
+    if len(top2) != 12 or any(None in v for v in top2.values()) \
+            or len(best3) != 8 or None in best3:
+        log.error("KO-sync: standings onvolledig of onbekende landnaam — overslaan.")
+        return None
+    advancers = {"top2": {k: top2[k] for k in sorted(top2)}, "best3": best3}
+
+    try:
+        fx_data = _football_api("fixtures", {"league": WC_LEAGUE_ID, "season": WC_SEASON})
+    except Exception as e:
+        log.error(f"KO-sync: fixtures ophalen mislukt: {e}")
+        return None
+    by_round = {}
+    for f in fx_data.get("response", []):
+        key = RONDE_LABEL.get(f["league"]["round"])
+        if key:
+            by_round.setdefault(key, []).append(f)
+
+    winners, brackets, results = {}, {}, {}
+    for key in KO_VOLGORDE:
+        api = by_round.get(key, [])
+        used = set()
+        b_slots, r_slots, any_res = [], [], False
+        for i, (hs, as_, m) in enumerate(KO_TREE[key]):
+            hr = _resolve_spec(hs, top2, winners)
+            ar = _resolve_spec(as_, top2, winners)
+            fx = _match_fixture(api, hr, ar, used, nl)
+            if fx is None:
+                b_slots.append((hs, as_, m, None, None))
+                r_slots.append(None)
+                continue
+            ht, at = nl(fx["teams"]["home"]["name"]), nl(fx["teams"]["away"]["name"])
+            if ht is None or at is None:
+                b_slots.append((hs, as_, m, None, None))
+                r_slots.append(None)
+                continue
+            other = lambda known: at if ht == known else ht
+            if hr:
+                home_team, away_team = hr, other(hr)
+            elif ar:
+                away_team, home_team = ar, other(ar)
+            else:
+                home_team, away_team = ht, at
+            b_slots.append((hs, as_, m, home_team, away_team))
+
+            res = None
+            if fx["fixture"]["status"]["short"] in _KLAAR_STATUS:
+                ftc = fx["score"]["fulltime"]
+                if ftc and ftc["home"] is not None:
+                    gh, ga = ftc["home"], ftc["away"]            # API home-away (na 90')
+                    res = f"{gh}-{ga}" if home_team == ht else f"{ga}-{gh}"
+                    any_res = True
+                # echte winnaar (incl. verlenging/penalty's) voor doorgang
+                hw = fx["teams"]["home"].get("winner")
+                aw = fx["teams"]["away"].get("winner")
+                win = ht if hw else at if aw else None
+                if win is None:
+                    fgh, fga = fx["goals"]["home"], fx["goals"]["away"]
+                    if fgh is not None and fgh != fga:
+                        win = ht if fgh > fga else at
+                if win:
+                    winners[(key, i)] = win
+            r_slots.append(res)
+        brackets[key] = b_slots
+        results[key] = r_slots if any_res else []
+    return {"advancers": advancers, "brackets": brackets, "results": results}
+
+
+def _advancers_literal(advancers: dict) -> str:
+    t = ",".join(f'"{k}":{json.dumps(v, ensure_ascii=False)}'
+                 for k, v in advancers["top2"].items())
+    return "{ top2:{" + t + "}, best3:" + json.dumps(advancers["best3"], ensure_ascii=False) + " }"
+
+
+def _ko_literal(brackets: dict, results: dict) -> str:
+    L = ["{", "    brackets:{"]
+    for key in KO_VOLGORDE:
+        L.append(f"      {key}:[")
+        for (hs, as_, m, ht, at) in brackets[key]:
+            if ht and at:
+                home, away, c = ht, at, f"// M{m} ({hs} v {as_})"
+            else:
+                home, away, c = hs, as_, f"// M{m}"
+            L.append(f'        {{home:{json.dumps(home, ensure_ascii=False)}, '
+                     f'away:{json.dumps(away, ensure_ascii=False)}}}, {c}')
+        L.append("      ],")
+    L.append("    },")
+    res = ",".join(f"{key}:{json.dumps(results[key], ensure_ascii=False)}" for key in KO_VOLGORDE)
+    L.append("    results:{" + res + "}")
+    L.append("  }")
+    return "\n".join(L)
+
+
+def _vervang_obj_waarde(src: str, sleutel: str, nieuw: str, start: int) -> str:
+    """Vervangt de object-waarde van `sleutel:` (vanaf index `start`) door `nieuw`.
+    Brace-matcher die strings overslaat — robuuster dan regex voor geneste objecten."""
+    k = src.index(sleutel + ":", start)
+    b = src.index("{", k)
+    depth, i, in_str, esc = 0, b, False, False
+    while i < len(src):
+        c = src[i]
+        if in_str:
+            if esc: esc = False
+            elif c == "\\": esc = True
+            elif c == '"': in_str = False
+        elif c == '"': in_str = True
+        elif c == "{": depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                break
+        i += 1
+    return src[:b] + nieuw + src[i + 1:]
+
+
+def sync_advancers_en_ko() -> str | None:
+    """Leidt advancers + KO af uit de API en schrijft ze (idempotent) naar data.js.
+    Geeft een korte samenvatting van wat wijzigde, of None (niets gewijzigd / fout)."""
+    berekend = _bereken_advancers_en_ko()
+    if not berekend:
+        return None
+    src = DATA_JS.read_text()
+    try:
+        anchor = src.index("const UITSLAGEN = {")
+    except ValueError:
+        log.error("KO-sync: UITSLAGEN niet gevonden in data.js")
+        return None
+
+    nieuw = src
+    if len(_lees_group_uitslagen()) >= 72:   # advancers pas invullen als de groepsfase klaar is
+        nieuw = _vervang_obj_waarde(nieuw, "advancers",
+                                    _advancers_literal(berekend["advancers"]), anchor)
+    anchor = nieuw.index("const UITSLAGEN = {")
+    nieuw = _vervang_obj_waarde(nieuw, "ko",
+                                _ko_literal(berekend["brackets"], berekend["results"]),
+                                nieuw.index("advancers", anchor))
+
+    if nieuw == src:
+        return None  # niets veranderd — geen write, geen commit
+
+    DATA_JS.write_text(nieuw)
+    validatie = subprocess.run(["node", str(REPO_DIR / "valideer_data.js")],
+                               capture_output=True, text=True)
+    if validatie.returncode != 0:
+        DATA_JS.write_text(src)
+        log.error(f"KO-sync: validatie mislukt, teruggedraaid:\n{validatie.stdout}{validatie.stderr}")
+        return None
+
+    gevuld_res = sum(1 for k in KO_VOLGORDE for r in berekend["results"][k] if r)
+    gevuld_br = sum(1 for k in KO_VOLGORDE for s in berekend["brackets"][k] if s[3])
+    return f"advancers + {gevuld_br} KO-affiches, {gevuld_res} KO-uitslagen"
+
+
+def _ko_status() -> dict:
+    out = subprocess.run(
+        ["node", "-e",
+         "const u=require('./data.js').UITSLAGEN;"
+         "const adv=Object.keys(u.advancers.top2||{}).length;"
+         "const res=['R32','R16','KF','HF','F'].reduce((s,k)=>s+((u.ko.results[k]||[]).filter(x=>x).length),0);"
+         "process.stdout.write(JSON.stringify({adv,res}))"],
+        cwd=str(REPO_DIR), capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def _ko_sync_nodig() -> bool:
+    """Goedkope gate (geen API): advancers nog leeg terwijl de groepsfase klaar is,
+    óf er ontbreekt een KO-uitslag voor een duel dat >2u45 geleden begon."""
+    if not FOOTBALL_API_KEY:
+        return False
+    try:
+        if len(_lees_group_uitslagen()) < 72:
+            return False
+        status = _ko_status()
+        if status["adv"] == 0:
+            return True
+        ko = json.loads(SCHEDULE_FILE.read_text()).get("knockout", {})
+        now, verwacht = datetime.now(_TZ), 0
+        for ronde_key, wedstrijden in ko.items():
+            if ronde_key == "3e4e":
+                continue  # 3e/4e-plaats hoort niet bij de poule-brackets
+            for w in wedstrijden:
+                dt = datetime.strptime(f"{w['datum']} {w['tijd']}", "%Y-%m-%d %H:%M").replace(tzinfo=_TZ)
+                if now - dt > timedelta(hours=2, minutes=45):
+                    verwacht += 1
+        return verwacht > status["res"]
+    except Exception as e:
+        log.error(f"_ko_sync_nodig: {e}")
+        return False
+
+
 def _push_data(commit_msg: str) -> None:
     """Commit + push data.js (GitHub Pages deploy). Doet niets als er niets wijzigde."""
     subprocess.run(["git", "-C", str(REPO_DIR), "config", "user.name", "Tempetoto Agent"], check=True)
@@ -2525,6 +2816,15 @@ async def meld_dode_kampioenen():
 
 
 async def run_check_uitslagen():
+    # KO-fase: doorgangers + brackets/uitslagen deterministisch syncen uit de API.
+    # Eigen goedkope gate; draait los van de groeps-check hieronder.
+    if _ko_sync_nodig():
+        samenvatting = sync_advancers_en_ko()
+        if samenvatting:
+            _push_data(f"Update KO/doorgangers: {samenvatting}")
+            bewaar_stand_snapshot()
+            log.info(f"KO-sync verwerkt: {samenvatting}")
+
     if not _klaar_te_checken():
         log.info("Check uitslagen: niets te checken.")
         return
