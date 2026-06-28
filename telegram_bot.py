@@ -2711,6 +2711,13 @@ def _bereken_advancers_en_ko() -> dict | None:
                 if win:
                     winners[(key, i)] = win
                     any_door = True
+                elif res is not None:
+                    # Afgeronde KO-wedstrijd zonder bepaalbare doorgaander: bij een
+                    # gelijkspel-voorspelling kan de toto dan niet correct gescoord
+                    # worden. Zou niet mogen voorkomen — actief loggen i.p.v. stil.
+                    log.warning(f"KO-sync: geen doorgaander bepaald voor {key} {ht}-{at} "
+                                f"(status={fx['fixture']['status']['short']}, res={res}) — "
+                                f"toto bij gelijkspel-voorspelling kan onjuist zijn.")
             r_slots.append(res)
             d_slots.append(win or "")
         brackets[key] = b_slots
