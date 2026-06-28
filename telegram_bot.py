@@ -87,8 +87,9 @@ VERSIE_NOTITIES  = {
             "en /jouwnaam: typ /giezen, /smit, /floris enzovoort en ik geef een samenvatting van die "
             "deelnemer — recente vorm en prematch-gokken met de status erbij (kampioen nog in de race "
             "of al afgevoerd). mij opvragen doe je met /kees, al weten jullie wat daar staat. de "
-            "commando's staan nu ook in het /-menu en /help geeft de volledige lijst. kale "
-            "berekening, ik raak er niks aan aan.",
+            "commando's staan nu ook in het /-menu en /help geeft de volledige lijst. en los "
+            "daarvan: de doorgangers en de hele knockout-fase (affiches + uitslagen) verwerk ik nu "
+            "automatisch, met na elke KO-wedstrijd een recap. kale berekening, ik raak er niks aan aan.",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
@@ -1467,6 +1468,205 @@ async def keep_typing(bot, chat_id: int, stop_event: asyncio.Event):
     while not stop_event.is_set():
         await bot.send_chat_action(chat_id=chat_id, action="typing")
         await asyncio.sleep(4)
+
+
+# ── KO-voorspellingen aanleveren via privé-DM met Kees (alleen Floris) ─────────
+# Floris stuurt in een privégesprek de KO-voorspellingen van deelnemers als tekst.
+# Kees parseert (LLM, alleen extractie), matcht teams -> bracket-slot DETERMINISTISCH,
+# toont een samenvatting en wacht op bevestiging. Pas na "ja" schrijven + pushen,
+# met dezelfde strikte aanpak als de Excel-route: alleen scores/landnamen, validatie
+# + rollback. Niets uitvoerbaars uit de invoer komt ooit in data.js.
+
+_KO_LENGTHS = {"R32": 16, "R16": 8, "KF": 4, "HF": 2, "F": 1}
+_KO_MARK_START = "// === KO-voorspellingen (via Kees) — automatisch beheerd, niet handmatig wijzigen ==="
+_KO_MARK_END = "// === einde KO-voorspellingen ==="
+_pending_ko: dict = {}  # chat_id -> {"updates": {...}}  (in-memory, tot bevestiging)
+
+
+def _deelnemers() -> list:
+    out = subprocess.run(
+        ["node", "-e", "process.stdout.write(JSON.stringify(require('./data.js').DEELNEMERS))"],
+        cwd=str(REPO_DIR), capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def _ko_brackets_nu() -> dict:
+    out = subprocess.run(
+        ["node", "-e", "process.stdout.write(JSON.stringify(require('./data.js').UITSLAGEN.ko.brackets))"],
+        cwd=str(REPO_DIR), capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def _landen() -> set:
+    out = subprocess.run(
+        ["node", "-e", "process.stdout.write(JSON.stringify(Object.values(require('./data.js').GROUPS).flat()))"],
+        cwd=str(REPO_DIR), capture_output=True, text=True, check=True)
+    return set(json.loads(out.stdout))
+
+
+def _huidige_ko_per_deelnemer() -> dict:
+    out = subprocess.run(
+        ["node", "-e",
+         "const d=require('./data.js');const o={};"
+         "for(const n of d.DEELNEMERS)o[n]=(d.VOORSPELLINGEN[n]||{}).ko||{};"
+         "process.stdout.write(JSON.stringify(o))"],
+        cwd=str(REPO_DIR), capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def _parse_ko_tekst(tekst: str) -> list[dict]:
+    """LLM-extractie (geen matching): geeft [{naam,team_a,team_b,score}] uit vrije tekst."""
+    deelnemers = _deelnemers()
+    landen = sorted(_landen())
+    system = (
+        "Je bent een strikte parser voor KO-voorspellingen van een voetbalpoule. Je krijgt tekst "
+        "van de beheerder met voorspelde uitslagen van deelnemers voor knockout-wedstrijden. "
+        "Haal er een JSON-array uit: [{\"naam\":..,\"team_a\":..,\"team_b\":..,\"score\":\"x-y\"}].\n"
+        f"- naam = exact één van: {', '.join(deelnemers)}. Normaliseer (bv. 'giezen'->'Giezen').\n"
+        f"- team_a/team_b = exact één van deze landen (normaliseer spelling/Engels->Nederlands): {', '.join(landen)}.\n"
+        "- score = 'doelpunten_team_a-doelpunten_team_b', in de volgorde zoals geschreven.\n"
+        "- Een kopregel met een naam (bv. 'Giezen:' of 'Giezen R32') geldt voor de regels eronder "
+        "tot een nieuwe naam verschijnt.\n"
+        "- Negeer alles wat geen duidelijke uitslag-voorspelling is. Verzin niets, gok geen landen.\n"
+        "- Antwoord met UITSLUITEND de JSON-array, zonder uitleg of opmaak."
+    )
+    raw = _call_chat_llm(system=system, messages=[{"role": "user", "content": tekst}], tools=[])
+    try:
+        i, j = raw.index("["), raw.rindex("]")
+        return json.loads(raw[i:j + 1])
+    except Exception as e:
+        log.error(f"_parse_ko_tekst: JSON niet leesbaar ({e}): {raw[:200]}")
+        return []
+
+
+def _verwerk_ko_invoer(tekst: str) -> tuple[dict, list, list]:
+    """Parseert + matcht teams -> bracket-slot. Geeft (updates, matched, onmatched)."""
+    brackets, landen = _ko_brackets_nu(), _landen()
+    slotidx = {}
+    for rnd in _KO_LENGTHS:
+        for idx, slot in enumerate(brackets.get(rnd, [])):
+            h, a = slot.get("home"), slot.get("away")
+            if h in landen and a in landen:
+                slotidx[frozenset((h, a))] = (rnd, idx, h, a)
+
+    deelnemers = set(_deelnemers())
+    updates, matched, onmatched = {}, [], []
+    for e in _parse_ko_tekst(tekst):
+        naam, ta, tb, sc = e.get("naam"), e.get("team_a"), e.get("team_b"), e.get("score")
+        m = re.match(r"^\s*(\d+)\s*-\s*(\d+)\s*$", str(sc or ""))
+        key = frozenset((ta, tb)) if ta and tb else None
+        if naam not in deelnemers or not m or key not in slotidx:
+            onmatched.append(e)
+            continue
+        rnd, idx, h, a = slotidx[key]
+        ga, gb = m.group(1), m.group(2)
+        score = f"{ga}-{gb}" if ta == h else f"{gb}-{ga}"
+        updates.setdefault(naam, {}).setdefault(rnd, {})[idx] = score
+        matched.append((naam, rnd, h, a, score))
+    return updates, matched, onmatched
+
+
+def _schrijf_ko_voorspellingen(updates: dict) -> str | None:
+    """Mergt updates in een idempotent beheerd blok in data.js; validatie + rollback."""
+    huidig = _huidige_ko_per_deelnemer()
+    merged = {}
+    for naam in set(list(huidig) + list(updates)):
+        ko = huidig.get(naam, {}) or {}
+        rnd_arrs = {}
+        for rnd, ln in _KO_LENGTHS.items():
+            arr = (list(ko.get(rnd, []) or []) + [""] * ln)[:ln]
+            for idx, score in updates.get(naam, {}).get(rnd, {}).items():
+                arr[int(idx)] = score
+            rnd_arrs[rnd] = arr
+        if any(any(x for x in rnd_arrs[r]) for r in _KO_LENGTHS):
+            merged[naam] = rnd_arrs
+
+    lines = [_KO_MARK_START]
+    for naam in sorted(merged):
+        body = ",".join(f"{r}:{json.dumps(merged[naam][r], ensure_ascii=False)}" for r in _KO_LENGTHS)
+        lines.append(f"VOORSPELLINGEN[{json.dumps(naam, ensure_ascii=False)}].ko = {{{body}}};")
+    lines.append(_KO_MARK_END)
+    blok = "\n".join(lines)
+
+    src = DATA_JS.read_text()
+    if _KO_MARK_START in src and _KO_MARK_END in src:
+        nieuw = src[:src.index(_KO_MARK_START)] + blok + src[src.index(_KO_MARK_END) + len(_KO_MARK_END):]
+    else:
+        anchor = src.index("const UITSLAGEN")
+        nieuw = src[:anchor] + blok + "\n\n" + src[anchor:]
+    if nieuw == src:
+        return None
+
+    DATA_JS.write_text(nieuw)
+    val = subprocess.run(["node", str(REPO_DIR / "valideer_data.js")], capture_output=True, text=True)
+    if val.returncode != 0:
+        DATA_JS.write_text(src)
+        log.error(f"KO-voorspelling validatie mislukt, teruggedraaid:\n{val.stdout}{val.stderr}")
+        return None
+    return "ok"
+
+
+def _ko_samenvatting(matched: list, onmatched: list) -> str:
+    per = {}
+    for naam, rnd, h, a, score in matched:
+        per.setdefault(naam, []).append(f"  {rnd:<4} {h}-{a}: {score}")
+    delen = [f"Herkend ({len(matched)} voorspellingen):"]
+    for naam in sorted(per):
+        delen.append(naam + ":")
+        delen.extend(per[naam])
+    if onmatched:
+        delen.append(f"\nNiet herkend ({len(onmatched)}, genegeerd):")
+        for e in onmatched:
+            delen.append(f"  - {e.get('naam','?')}: {e.get('team_a','?')}-{e.get('team_b','?')} "
+                         f"{e.get('score','?')}")
+    delen.append("\nStuur 'ja' om op te slaan, 'nee' om te annuleren.")
+    return "\n".join(delen)
+
+
+async def handle_floris_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Privé-DM van Floris: KO-voorspellingen aanleveren (parse -> bevestig -> opslaan)."""
+    msg = update.message
+    if not msg or not msg.text or msg.from_user.id != FLORIS_ID:
+        return
+    loop = asyncio.get_event_loop()
+    tekst = msg.text.strip()
+    low = tekst.lower()
+
+    if low in ("ja", "opslaan", "bevestig", "ok", "oke", "oké") and msg.chat_id in _pending_ko:
+        upd = _pending_ko.pop(msg.chat_id)["updates"]
+        ok = await loop.run_in_executor(None, _schrijf_ko_voorspellingen, upd)
+        if ok:
+            await loop.run_in_executor(None, _push_data, "Update voorspellingen: KO via Kees-DM")
+            await msg.reply_text("Opgeslagen en gepusht. 🏴‍☠️")
+        else:
+            await msg.reply_text("Opslaan mislukt bij de validatie — niets gewijzigd. Check de invoer.")
+        return
+    if low in ("nee", "annuleer", "cancel", "stop") and msg.chat_id in _pending_ko:
+        _pending_ko.pop(msg.chat_id)
+        await msg.reply_text("Geannuleerd, niets opgeslagen.")
+        return
+
+    stop_event = asyncio.Event()
+    typing = asyncio.create_task(keep_typing(context.bot, msg.chat_id, stop_event))
+    try:
+        updates, matched, onmatched = await loop.run_in_executor(None, _verwerk_ko_invoer, tekst)
+    except Exception as e:
+        log.error(f"handle_floris_dm parse-fout: {e}")
+        updates, matched, onmatched = {}, [], []
+    finally:
+        stop_event.set()
+        await typing
+
+    if not matched:
+        hint = ("Ik herkende geen KO-voorspellingen. Stuur ze per deelnemer, bijv.:\n"
+                "Giezen:\nZuid-Afrika-Canada 2-1\nDuitsland-Paraguay 1-0")
+        if onmatched:
+            hint += f"\n\n({len(onmatched)} regel(s) niet te matchen — klopt de landnaam of is de wedstrijd al bekend?)"
+        await msg.reply_text(hint)
+        return
+
+    _pending_ko[msg.chat_id] = {"updates": updates}
+    await msg.reply_text(_ko_samenvatting(matched, onmatched))
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3085,6 +3285,12 @@ def main():
         filters.TEXT & ~filters.COMMAND & filters.Chat(CHAT_ID),
         handle_message,
     ))
+    # Privé-DM van Floris: KO-voorspellingen aanleveren (los van de groep).
+    if FLORIS_ID:
+        app.add_handler(MessageHandler(
+            filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE & filters.User(FLORIS_ID),
+            handle_floris_dm,
+        ))
     log.info(f"AI Kees v{VERSIE} is online — wacht op berichten")
     app.run_polling(drop_pending_updates=True)
 
