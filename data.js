@@ -1745,8 +1745,8 @@ const UITSLAGEN = {
         {home:"W HF-1", away:"W HF-2"}, // M104
       ],
     },
-    results:{R32:["0-1", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],R16:[],KF:[],HF:[],F:[]},
-    door:{R32:["Canada", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],R16:[],KF:[],HF:[],F:[]}
+    results:{R32:["0-1", null, null, "2-1", null, null, null, null, null, null, null, null, null, null, null, null],R16:[],KF:[],HF:[],F:[]},
+    door:{R32:["Canada", "", "", "Brazilië", "", "", "", "", "", "", "", "", "", "", "", ""],R16:[],KF:[],HF:[],F:[]}
   },
   facts:{ compleet:false, champion:"", finalist:"", topscorers:["Messi","Mbappé","O. Dembélé"], topscorerGoals:6, totalGoals:216, yellow:174, red:10},
 };
