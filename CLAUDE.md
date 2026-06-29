@@ -109,13 +109,18 @@ tiebreakers al toegepast, incl. het 13e "Group Stage"-blok = ranglijst nummers 3
 KO-ronde de affiches (`ko.brackets`) + uitslagen (`ko.results`) uit de fixtures. De vaste
 bracket-boom staat als `KO_TREE` in de code (FIFA M73-M104). Idempotent & self-healing:
 elke run opnieuw afgeleid, write alleen bij wijziging (valideer_data.js + rollback), dan push.
-Regels: **punten = stand na 90 min** (`score.fulltime`); **doorgang = echte winnaar** (API
-winner-vlag, dus penalty's tellen voor de bracket maar niet voor de scorepunten).
-**Toto bij gelijkspel:** voorspelt iemand een gelijkspel dat ook gelijk eindigt, dan krijgt hij
-de toto-punten alleen als zijn **gekozen doorgaander** (`VOORSPELLINGEN[n].ko_door[ronde][i]`)
-ook echt doorging (`UITSLAGEN.ko.door` = winnaar na verlenging/penalty's). De exacte-uitslag-
-punten krijgt hij sowieso bij de juiste 90-min score. Deze logica zit gelijk in `bereken_stand.js`,
-`valideer_data.js` (10 KO-testcases) én `index.html` (`scoreKo` met `predDoor`/`realDoor`).
+Regels (herzien 29 juni 2026): **KO-punten = juiste doorgaander + losse exacte 90-min uitslag**.
+De **doorgaander-punten** (R32 5, R16 7, KF 9, HF 11, F 13) gaan naar wie het juiste land
+voorspelt dat doorgaat: bij een voorspelde **winst** is dat de winnaar van de voorspelde score,
+bij een voorspeld **gelijkspel** de apart opgegeven `VOORSPELLINGEN[n].ko_door[ronde][i]`.
+De **echte doorgaander** is `UITSLAGEN.ko.door` (= API winner-vlag, ná verlenging/penalty's).
+De **exacte-uitslag-punten** (+3/+4/+5/+6/+7) staan daar los van en tellen op de **stand na
+90 min** (`score.fulltime`; extra tijd/penalty's tellen niet voor de exacte score). Je krijgt
+de exacte-punten sowieso bij de juiste 90-min score, ook zonder de doorgaander-punten.
+`scoreKo` heeft daarvoor signatuur `(pred,res,round,predDoor,realDoor,home,away)` (home/away
+nodig om de doorgaander uit een niet-gelijkspel-score af te leiden). Deze logica zit identiek in
+`bereken_stand.js`, `valideer_data.js` (11 KO-testcases) én `index.html`, plus de recap-snippets
+`_RONDE_PUNTEN_JS` en `_ko_match_recap` in `telegram_bot.py`.
 De sync vult `UITSLAGEN.ko.door`; via de DM levert Floris de doorgaander aan (Kees vraagt erom
 bij een gelijkspel zonder opgave), en Kees kiest er zelf één bij zijn eigen gelijkspel-picks.
 Na elke nieuw afgeloten KO-wedstrijd post Kees een recap (zoals bij groepswedstrijden):
