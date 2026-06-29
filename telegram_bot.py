@@ -357,7 +357,9 @@ TOOL_GET_TOURNAMENT_STATS = {
 
 TOOL_GET_SCHEDULE = {
     "name": "get_schedule",
-    "description": "Geeft het volledige WK-speelschema: datum, tijd (NL), stad en stadion per wedstrijd (#1-#104).",
+    "description": "Geeft het volledige WK-speelschema: datum, tijd (NL), stad en stadion per wedstrijd (#1-#104). "
+                   "Let op: knockout-wedstrijden staan hier ZONDER teamnamen. Voor de KO-affiches (welke landen "
+                   "tegen elkaar) gebruik je get_wedstrijden_dag of get_standings/get_data.",
     "input_schema": {"type": "object", "properties": {}, "required": []},
 }
 
@@ -834,18 +836,34 @@ def _wedstrijden_dag(dag: str = "vandaag") -> str:
                 "stad": info["stad"], "stadion": info["stadion"],
                 "_dt": dt.isoformat(),
             })
+    try:
+        ko_schema = _ko_schema_nu()
+        ko_brackets, ko_results = ko_schema.get("brackets", {}), ko_schema.get("results", {})
+        landen = _landen()
+    except Exception as e:
+        log.error(f"KO-affiches in _wedstrijden_dag mislukt: {e}")
+        ko_brackets, ko_results, landen = {}, {}, set()
     for ronde, matches in sch.get("knockout", {}).items():
-        for info in matches:
+        affiches, uitslagen = ko_brackets.get(ronde, []), ko_results.get(ronde, [])
+        for i, info in enumerate(matches):
             dt = datetime.fromisoformat(f"{info['datum']} {info['tijd']}")
             if start <= dt < eind:
-                wedstrijden.append({
+                aff = affiches[i] if i < len(affiches) else {}
+                # Affiche pas tonen als beide echte landen zijn (geen 'W R32-2'-placeholder).
+                thuis = aff.get("home") if aff.get("home") in landen else "nog onbekend"
+                uit   = aff.get("away") if aff.get("away") in landen else "nog onbekend"
+                w = {
                     "matchId": f"#{info['nr']}", "nr": info["nr"], "ronde": ronde,
-                    "thuis": "nog onbekend", "uit": "nog onbekend",
+                    "thuis": thuis, "uit": uit,
                     "datum": info["datum"], "tijd": info["tijd"],
                     "vannacht": dt.date() != doel,
                     "stad": info["stad"], "stadion": info["stadion"],
                     "_dt": dt.isoformat(),
-                })
+                }
+                res = uitslagen[i] if i < len(uitslagen) else None
+                if res:
+                    w["uitslag"] = res
+                wedstrijden.append(w)
     wedstrijden.sort(key=lambda w: w.pop("_dt"))
     return json.dumps({
         "speeldag": str(doel),
@@ -1607,6 +1625,15 @@ def _deelnemers() -> list:
 def _ko_brackets_nu() -> dict:
     out = subprocess.run(
         ["node", "-e", "process.stdout.write(JSON.stringify(require('./data.js').UITSLAGEN.ko.brackets))"],
+        cwd=str(REPO_DIR), capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def _ko_schema_nu() -> dict:
+    """{brackets, results} uit data.js — affiches + 90-min uitslagen per KO-ronde."""
+    out = subprocess.run(
+        ["node", "-e", "const k=require('./data.js').UITSLAGEN.ko;"
+         "process.stdout.write(JSON.stringify({brackets:k.brackets,results:k.results}))"],
         cwd=str(REPO_DIR), capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
 
