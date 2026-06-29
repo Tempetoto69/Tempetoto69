@@ -161,7 +161,7 @@ const SPELREGELS = [
 // ---- Puntentelling (label, uitleg) ----
 const PUNTENTELLING = [
   ["Groepswedstrijden:","Een goede 'toto' (winst, gelijkspel of verlies) levert 3 punten op. Goede uitslag +2 pt."],
-  ["Knock-outrondes:","Goede 'toto' [en goede uitslag]: R32 5 [+3], R16 7 [+4], KF 9 [+5], HF 11 [+6], F 13 [+7] pt. Alles op de stand na 90 min. Voorspel je een gelijkspel, geef dan aan welk land doorgaat: alleen als jouw doorgaander ook echt doorgaat (na verlenging/penalty's) krijg je de toto-punten — de exacte-uitslag-punten krijg je sowieso bij de juiste 90-min score."],
+  ["Knock-outrondes:","Juiste doorgaander [en exacte 90-min uitslag]: R32 5 [+3], R16 7 [+4], KF 9 [+5], HF 11 [+6], F 13 [+7] pt. Je voorspelt welk land doorgaat: ga je voor de winnaar, dan is de doorgaander de winnaar van je voorspelde score; voorspel je een gelijkspel, geef dan apart aan welk land doorgaat. De doorgaander telt ná verlenging/penalty's; de exacte-uitslag-punten gaan over de stand na 90 min (extra tijd niet) en krijg je sowieso bij de juiste 90-min score."],
   ["Doorgaan (top-2):","Per goed voorspeld land dat als 1e of 2e doorgaat: 3 punten."],
   ["Beste nummers 3:","Per goed voorspelde nummer 3 die doorgaat: 3 punten (8 plekken)."],
   ["Kampioen:","Voorspeld land verliezend finalist: 16 punten. Kampioen: 40 punten."],

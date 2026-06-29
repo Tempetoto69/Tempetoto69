@@ -155,40 +155,44 @@ for (const tc of GROEP_CASES) {
 }
 if (groepOk) ok(`scoreGroup: alle ${GROEP_CASES.length} testcases correct`);
 
-// KO scoretest — identieke logica als bereken_stand.js. Bij een voorspeld gelijkspel
-// dat ook gelijk eindigde beslist de doorgaander (predDoor vs realDoor) over de toto.
-function scoreKo(pred, res, totoP, exactP, predDoor, realDoor) {
+// KO scoretest — identieke logica als bereken_stand.js. Punten = juiste doorgaander
+// (totoP) + exacte 90-min uitslag (exactP), los van elkaar. Voorspelde doorgaander =
+// winnaar van de voorspelde score, of bij een voorspeld gelijkspel de gekozen predDoor.
+// Echte doorgaander = realDoor (na verlenging/penalty's), met terugval op 90-min winnaar.
+function scoreKo(pred, res, totoP, exactP, predDoor, realDoor, home, away) {
     const p = parseScore(pred), r = parseScore(res);
     if (!p || !r) return 0;
-    const dp = toto(p[0], p[1]), dr = toto(r[0], r[1]);
-    let totoGoed;
-    if (dp !== dr) totoGoed = false;
-    else if (dp === 0) totoGoed = !!predDoor && predDoor === realDoor;
-    else totoGoed = true;
+    const predDoorgaander = p[0] > p[1] ? home : p[1] > p[0] ? away : (predDoor || null);
+    const echteDoorgaander = realDoor || (r[0] > r[1] ? home : r[1] > r[0] ? away : null);
     let pts = 0;
-    if (totoGoed) pts += totoP;
+    if (predDoorgaander && echteDoorgaander && predDoorgaander === echteDoorgaander) pts += totoP;
     if (p[0] === r[0] && p[1] === r[1]) pts += exactP;
     return pts;
 }
 
 const R32 = { toto: 5, exact: 3 };
+// home = Zuid-Afrika, away = Canada (zoals affiche M73)
+const H = 'Zuid-Afrika', A = 'Canada';
 const KO_CASES = [
-    { pred: '2-1', res: '2-1', verwacht: 8, label: 'R32 exact (2-1 vs 2-1)' },
-    { pred: '3-0', res: '2-1', verwacht: 5, label: 'R32 toto (3-0 vs 2-1)' },
-    { pred: '0-2', res: '2-1', verwacht: 0, label: 'R32 fout (0-2 vs 2-1)' },
-    // Gelijkspel-voorspelling: doorgaander beslist over de toto
+    { pred: '2-1', res: '2-1', rdoor: 'Zuid-Afrika', verwacht: 8, label: 'thuiswinst exact: doorgaander + exact' },
+    { pred: '3-0', res: '2-1', rdoor: 'Zuid-Afrika', verwacht: 5, label: 'thuiswinst, juiste doorgaander, niet exact' },
+    { pred: '0-2', res: '2-1', rdoor: 'Zuid-Afrika', verwacht: 0, label: 'verkeerde doorgaander voorspeld → 0' },
+    // Gelijkspel-voorspelling: gekozen doorgaander telt
     { pred: '1-1', res: '1-1', pdoor: 'Canada', rdoor: 'Canada', verwacht: 8, label: 'gelijk exact + doorgaander goed' },
-    { pred: '1-1', res: '1-1', pdoor: 'Zuid-Afrika', rdoor: 'Canada', verwacht: 3, label: 'gelijk exact, doorgaander fout (jouw voorbeeld)' },
-    { pred: '2-2', res: '1-1', pdoor: 'Canada', rdoor: 'Canada', verwacht: 5, label: 'gelijk toto + doorgaander goed, niet exact' },
+    { pred: '1-1', res: '1-1', pdoor: 'Zuid-Afrika', rdoor: 'Canada', verwacht: 3, label: 'gelijk exact, doorgaander fout' },
+    { pred: '2-2', res: '1-1', pdoor: 'Canada', rdoor: 'Canada', verwacht: 5, label: 'gelijk, doorgaander goed, niet exact' },
     { pred: '2-2', res: '1-1', pdoor: 'Zuid-Afrika', rdoor: 'Canada', verwacht: 0, label: 'gelijk, doorgaander fout, niet exact' },
-    { pred: '1-1', res: '1-1', pdoor: '', rdoor: 'Canada', verwacht: 3, label: 'gelijk voorspeld zonder doorgaander → geen toto' },
-    { pred: '2-1', res: '1-1', pdoor: '', rdoor: 'Canada', verwacht: 0, label: 'winst voorspeld maar werd gelijk → 0' },
-    { pred: '1-1', res: '2-1', pdoor: 'Canada', rdoor: '', verwacht: 0, label: 'gelijk voorspeld maar werd winst → 0' },
+    { pred: '1-1', res: '1-1', pdoor: '', rdoor: 'Canada', verwacht: 3, label: 'gelijk zonder doorgaander → alleen exact' },
+    // Kern van de nieuwe regel: gelijkspel voorspeld, doorgaander goed, beslist na 90 min
+    { pred: '1-1', res: '0-1', pdoor: 'Canada', rdoor: 'Canada', verwacht: 5, label: 'gelijk voorspeld met juiste doorgaander, won in 90 min (casus Floris/Smit)' },
+    // Winnaar voorspeld die pas na penalty's doorgaat → toch doorgaander-punten
+    { pred: '2-1', res: '1-1', pdoor: '', rdoor: 'Zuid-Afrika', verwacht: 5, label: 'thuiswinst voorspeld, werd gelijk maar thuis ging door' },
+    { pred: '1-2', res: '2-1', pdoor: '', rdoor: 'Canada', verwacht: 5, label: 'uitwinst voorspeld, thuis won 90 min maar away ging door op penalty\'s' },
 ];
 
 let koOk = true;
 for (const tc of KO_CASES) {
-    const score = scoreKo(tc.pred, tc.res, R32.toto, R32.exact, tc.pdoor, tc.rdoor);
+    const score = scoreKo(tc.pred, tc.res, R32.toto, R32.exact, tc.pdoor, tc.rdoor, H, A);
     if (score !== tc.verwacht) {
         fout(`scoreKo: ${tc.label}`, `verwacht ${tc.verwacht}, kreeg ${score}`);
         koOk = false;

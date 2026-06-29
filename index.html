@@ -159,18 +159,17 @@ function scoreGroup(pred,res){
   if(p[0]===r[0]&&p[1]===r[1]) pts+=SCORING.group.exact;
   return pts;
 }
-// KO-toto op de 90-minutenstand; bij een voorspeld gelijkspel dat ook gelijk
-// eindigde beslist de gekozen doorgaander (predDoor) t.o.v. wie echt doorging (realDoor).
-function scoreKo(pred,res,round,predDoor,realDoor){
+// KO-punten = juiste doorgaander (round.toto) + exacte 90-min uitslag (round.exact), los
+// van elkaar. Voorspelde doorgaander = winnaar van de voorspelde score, of bij een
+// voorspeld gelijkspel de gekozen doorgaander (predDoor). Echte doorgaander = realDoor
+// (UITSLAGEN.ko.door, na verlenging/penalty's), met terugval op de 90-min winnaar.
+function scoreKo(pred,res,round,predDoor,realDoor,home,away){
   const p=parseScore(pred),r=parseScore(res);
   if(!p||!r) return 0;
-  const dp=toto(p[0],p[1]),dr=toto(r[0],r[1]);
-  let totoGoed;
-  if(dp!==dr) totoGoed=false;
-  else if(dp===0) totoGoed=!!predDoor&&predDoor===realDoor;
-  else totoGoed=true;
+  const predDoorgaander=p[0]>p[1]?home:p[1]>p[0]?away:(predDoor||null);
+  const echteDoorgaander=realDoor||(r[0]>r[1]?home:r[1]>r[0]?away:null);
   let pts=0;
-  if(totoGoed) pts+=round.toto;
+  if(predDoorgaander&&echteDoorgaander&&predDoorgaander===echteDoorgaander) pts+=round.toto;
   if(p[0]===r[0]&&p[1]===r[1]) pts+=round.exact;
   return pts;
 }
@@ -454,7 +453,7 @@ function participantRows(naam){
   push(C("Knock-out (uitslag na 90 min)","grouphdr",NCOLS));
   for(const round of KO_ROUNDS){
     const br=u.ko.brackets[round.key]||[];
-    push(C(`${round.naam}  ·  toto ${round.toto} / exact +${round.exact}`,"lbl",NCOLS));
+    push(C(`${round.naam}  ·  doorgaander ${round.toto} / exact +${round.exact}`,"lbl",NCOLS));
     if(!br.length){
       push(C("— wedstrijden worden later aangevuld —","subhdr",NCOLS));
       rows.push(subRow(`Subtotaal ${round.naam}:`, 0, "pt"));
@@ -467,7 +466,7 @@ function participantRows(naam){
       const res=(u.ko.results[round.key]||[])[i]||"";
       const pdoor=((v.ko_door||{})[round.key]||[])[i]||"";
       const rdoor=((u.ko.door||{})[round.key]||[])[i]||"";
-      const pts=scoreKo(pred,res,round,pdoor,rdoor);
+      const pts=scoreKo(pred,res,round,pdoor,rdoor,duel.home,duel.away);
       if(res) roundPts+=pts;
       // Bij een gelijkspel-voorspelling de gekozen doorgaander tonen (puntbepalend)
       const predTxt=pred+(pdoor?` (${pdoor} door)`:"");
@@ -610,11 +609,11 @@ function koPunten(){
     const rdoor=(UITSLAGEN.ko.door||{})[r.key]||[];
     const pts={}; let gespeeld=false;
     const compleet=rondeGevuld(r.key)&&br.length>0&&br.every((_,i)=>parseScore(reals[i]));
-    br.forEach((_,i)=>{
+    br.forEach((duel,i)=>{
       if(!parseScore(reals[i])) return;
       gespeeld=true;
       for(const n of DEELNEMERS)
-        pts[n]=(pts[n]||0)+scoreKo((VOORSPELLINGEN[n].ko[r.key]||[])[i],reals[i],r,((VOORSPELLINGEN[n].ko_door||{})[r.key]||[])[i],rdoor[i]);
+        pts[n]=(pts[n]||0)+scoreKo((VOORSPELLINGEN[n].ko[r.key]||[])[i],reals[i],r,((VOORSPELLINGEN[n].ko_door||{})[r.key]||[])[i],rdoor[i],duel.home,duel.away);
     });
     out[r.key]={pts,compleet,gespeeld};
   }

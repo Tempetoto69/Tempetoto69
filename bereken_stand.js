@@ -51,19 +51,18 @@ function scoreGroup(pred, res) {
   return pts;
 }
 
-// KO-toto telt op de 90-minutenstand. Bij een voorspeld gelijkspel dat ook echt
-// gelijk eindigde, beslist de gekozen doorgaander (predDoor) t.o.v. wie er echt
-// doorging (realDoor, na verlenging/penalty's) of de toto goed is.
-function scoreKo(pred, res, round, predDoor, realDoor) {
+// KO-punten = juiste doorgaander (round.toto) + exacte 90-min uitslag (round.exact),
+// los van elkaar. De voorspelde doorgaander is de winnaar van de voorspelde score, of
+// bij een voorspeld gelijkspel de expliciet gekozen doorgaander (predDoor). De echte
+// doorgaander (realDoor, na verlenging/penalty's) komt uit UITSLAGEN.ko.door; valt die
+// weg dan vallen we terug op de 90-min winnaar. De exacte-puntentelt op de 90-min stand.
+function scoreKo(pred, res, round, predDoor, realDoor, home, away) {
   const p = parseScore(pred), r = parseScore(res);
   if (!p || !r) return 0;
-  const dp = toto(p[0], p[1]), dr = toto(r[0], r[1]);
-  let totoGoed;
-  if (dp !== dr) totoGoed = false;                                   // andere 90-min uitkomst
-  else if (dp === 0) totoGoed = !!predDoor && predDoor === realDoor; // gelijkspel: doorgaander beslist
-  else totoGoed = true;                                              // zelfde winnaar-richting
+  const predDoorgaander = p[0] > p[1] ? home : p[1] > p[0] ? away : (predDoor || null);
+  const echteDoorgaander = realDoor || (r[0] > r[1] ? home : r[1] > r[0] ? away : null);
   let pts = 0;
-  if (totoGoed) pts += round.toto;
+  if (predDoorgaander && echteDoorgaander && predDoorgaander === echteDoorgaander) pts += round.toto;
   if (p[0] === r[0] && p[1] === r[1]) pts += round.exact;
   return pts;
 }
@@ -175,7 +174,8 @@ function computeScore(naam) {
   for (const r of KO_ROUNDS) {
     const preds = v.ko[r.key] || [], reals = u.ko.results[r.key] || [];
     const pdoor = (v.ko_door || {})[r.key] || [], rdoor = (u.ko.door || {})[r.key] || [];
-    reals.forEach((res, i) => { if (preds[i] != null) ko += scoreKo(preds[i], res, r, pdoor[i], rdoor[i]); });
+    const br = u.ko.brackets[r.key] || [];
+    reals.forEach((res, i) => { if (preds[i] != null) { const d = br[i] || {}; ko += scoreKo(preds[i], res, r, pdoor[i], rdoor[i], d.home, d.away); } });
   }
 
   const p = v.prematch, f = u.facts;
