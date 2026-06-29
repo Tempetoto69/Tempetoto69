@@ -34,7 +34,7 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, C
 
 load_dotenv(Path(__file__).parent / '.env')
 
-VERSIE           = "3.06"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
+VERSIE           = "3.07"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
 # Korte changelog per versie. Bij een nieuwe versie kondigt Kees dit beknopt aan in de groep
 # (1x per versie, bij opstart). Geen notitie = geen aankondiging.
 VERSIE_NOTITIES  = {
@@ -102,6 +102,12 @@ VERSIE_NOTITIES  = {
             "liep. opgelost: ik tel knockout-wedstrijden nu net zo goed live mee, op de stand na 90 "
             "minuten (verlenging en penalty's tellen niet voor de punten, gelijkspel zonder bekende "
             "doorgaander levert nog geen toto op). geldt voor alle rondes tot en met de finale.",
+    "3.07": "knockout-telling helder herzien, op verzoek van de directie. de dikke punten (16e: 5, "
+            "oplopend tot 13 in de finale) gaan voortaan naar wie de juiste DOORGAANDER voorspelt — "
+            "welk land de volgende ronde haalt, beslist ná verlenging en penalty's. de exacte "
+            "90-minutenuitslag levert daar gewoon nog 3 tot 7 punten bovenop, los daarvan. dus wie "
+            "een gelijkspel gokte met het juiste land erachter pakt nu zijn punten in plaats van een "
+            "nul. een paar standjes verschuiven daardoor — gewoon een eerlijkere afrekening. 🏴‍☠️",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
@@ -1230,12 +1236,16 @@ for(const r of d.KO_ROUNDS){
   const br=d.UITSLAGEN.ko.brackets[r.key]||[], res=d.UITSLAGEN.ko.results[r.key]||[];
   const gevuld=br.length>0&&br.every(x=>alle.includes(x.home)&&alle.includes(x.away));
   const seg={compleet:gevuld&&br.every((_,i)=>parse(res[i])),punten:{}};
-  br.forEach((_,i)=>{
+  const rdoorArr=(d.UITSLAGEN.ko.door||{})[r.key]||[];
+  br.forEach((duel,i)=>{
     const u=parse(res[i]); if(!u) return;
+    const realAdv=rdoorArr[i]||(u[0]>u[1]?duel.home:u[1]>u[0]?duel.away:null);
     for(const n of d.DEELNEMERS){
       const p=parse(((d.VOORSPELLINGEN[n].ko||{})[r.key]||[])[i]); if(!p) continue;
+      const pdoor=((d.VOORSPELLINGEN[n].ko_door||{})[r.key]||[])[i];
+      const predAdv=p[0]>p[1]?duel.home:p[1]>p[0]?duel.away:(pdoor||null);
       let pts=0;
-      if(toto(p[0],p[1])===toto(u[0],u[1])) pts+=r.toto;
+      if(predAdv&&realAdv&&predAdv===realAdv) pts+=r.toto;
       if(p[0]===u[0]&&p[1]===u[1]) pts+=r.exact;
       seg.punten[n]=(seg.punten[n]||0)+pts;
     }
@@ -3155,8 +3165,9 @@ for(const r of KO){
     for(const n of d.DEELNEMERS){
       const p=parse(((d.VOORSPELLINGEN[n].ko||{})[r.key]||[])[i]); if(!p) continue;
       const pdoor=((d.VOORSPELLINGEN[n].ko_door||{})[r.key]||[])[i];
-      const dp=toto(p[0],p[1]), dr=toto(rr[0],rr[1]);
-      let t; if(dp!==dr)t=false; else if(dp===0)t=!!pdoor&&pdoor===rdoor; else t=true;
+      const predAdv=p[0]>p[1]?slot.home:p[1]>p[0]?slot.away:(pdoor||null);
+      const realAdv=rdoor||(rr[0]>rr[1]?slot.home:rr[1]>rr[0]?slot.away:null);
+      const t=!!(predAdv&&realAdv&&predAdv===realAdv);
       const e=p[0]===rr[0]&&p[1]===rr[1];
       let pts=0; if(t)pts+=r.toto; if(e)pts+=r.exact;
       v.push({naam:n,voorspelling:`${p[0]}-${p[1]}`,toto:t,exact:e,punten:pts});
