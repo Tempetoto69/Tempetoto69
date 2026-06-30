@@ -1723,8 +1723,8 @@ const UITSLAGEN = {
       ],
       R16:[
         {home:"W R32-2", away:"W R32-5"}, // M89
-        {home:"W R32-1", away:"W R32-3"}, // M90
-        {home:"W R32-4", away:"W R32-6"}, // M91
+        {home:"Canada", away:"Marokko"}, // M90 (W R32-1 v W R32-3)
+        {home:"Brazilië", away:"Noorwegen"}, // M91 (W R32-4 v W R32-6)
         {home:"W R32-7", away:"W R32-8"}, // M92
         {home:"W R32-11", away:"W R32-12"}, // M93
         {home:"W R32-9", away:"W R32-10"}, // M94
@@ -1745,8 +1745,8 @@ const UITSLAGEN = {
         {home:"W HF-1", away:"W HF-2"}, // M104
       ],
     },
-    results:{R32:["0-1", "1-1", "1-1", "2-1", null, null, null, null, null, null, null, null, null, null, null, null],R16:[],KF:[],HF:[],F:[]},
-    door:{R32:["Canada", "Paraguay", "Marokko", "Brazilië", "", "", "", "", "", "", "", "", "", "", "", ""],R16:[],KF:[],HF:[],F:[]}
+    results:{R32:["0-1", "1-1", "1-1", "2-1", null, "1-2", null, null, null, null, null, null, null, null, null, null],R16:[],KF:[],HF:[],F:[]},
+    door:{R32:["Canada", "Paraguay", "Marokko", "Brazilië", "", "Noorwegen", "", "", "", "", "", "", "", "", "", ""],R16:[],KF:[],HF:[],F:[]}
   },
   facts:{ compleet:false, champion:"", finalist:"", topscorers:["Messi","Mbappé","Vinícius Júnior"], topscorerGoals:6, totalGoals:223, yellow:184, red:10},
 };
