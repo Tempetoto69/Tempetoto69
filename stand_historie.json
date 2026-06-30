@@ -302,16 +302,16 @@
  {
   "datum": "2026-06-30",
   "stand": {
-   "Huttenhuis": 262,
-   "EJ": 256,
-   "Smit": 253,
-   "Pieter": 243,
-   "Mark": 242,
-   "Slotboom": 240,
+   "Huttenhuis": 280,
+   "EJ": 274,
+   "Smit": 274,
+   "Mark": 260,
+   "Pieter": 258,
+   "Slotboom": 245,
    "AI Kees": 229,
-   "Floris": 210,
-   "Giezen": 186,
-   "Daniel": 174
+   "Floris": 223,
+   "Giezen": 194,
+   "Daniel": 179
   }
  }
 ]
