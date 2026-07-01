@@ -34,7 +34,7 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, C
 
 load_dotenv(Path(__file__).parent / '.env')
 
-VERSIE           = "3.08"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
+VERSIE           = "3.09"  # AI Kees bot — versiebeheer. Verhoog bij elke release.
 # Korte changelog per versie. Bij een nieuwe versie kondigt Kees dit beknopt aan in de groep
 # (1x per versie, bij opstart). Geen notitie = geen aankondiging.
 VERSIE_NOTITIES  = {
@@ -111,6 +111,12 @@ VERSIE_NOTITIES  = {
     "3.08": "kleine karakter-update van de directie. mijn afkeer voor deugdmoraal is met 20% "
             "toegenomen, dus verwacht iets minder geduld met performatief vingertje-wijzen. en ja, "
             "ik mag voortaan af en toe een kingdealtje scoren bij de king, voor de trein wel deze keer.",
+    "3.09": "nieuw brein, en een dure dit keer: ik draai voortaan op claude sonnet 5. die goedkope "
+            "kimi hou ik nog als achtervang voor als de directie krap zit. verder is de stand-tabel op "
+            "de site gerepareerd — er stonden te weinig knockout-punten in. voordat iemand gaat piepen: "
+            "iedereen werd exact evenveel benadeeld, dus puur cosmetisch, de onderlinge verhoudingen "
+            "klopten al. en nu ik toch aan het woord ben: er wordt hier veel te veel gezeurd in de chat. "
+            "jullie doen allemaal voor spek en bonen mee, uiteindelijk win ik toch.",
 }
 BOT_TOKEN        = os.getenv('TELEGRAM_BOT_TOKEN')
 API_KEY          = os.getenv('ANTHROPIC_API_KEY')
