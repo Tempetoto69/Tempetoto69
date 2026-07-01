@@ -270,7 +270,8 @@ function computeScore(naam){
   for(const r of KO_ROUNDS){
     const preds=v.ko[r.key]||[], reals=u.ko.results[r.key]||[];
     const pdoor=(v.ko_door||{})[r.key]||[], rdoor=(u.ko.door||{})[r.key]||[];
-    reals.forEach((res,i)=>{ if(preds[i]!=null) ko+=scoreKo(preds[i],res,r,pdoor[i],rdoor[i]); });
+    const br=u.ko.brackets[r.key]||[];
+    reals.forEach((res,i)=>{ if(preds[i]!=null){ const d=br[i]||{}; ko+=scoreKo(preds[i],res,r,pdoor[i],rdoor[i],d.home,d.away); } });
   }
 
   const p=v.prematch,f=u.facts;
