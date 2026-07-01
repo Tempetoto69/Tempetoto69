@@ -120,8 +120,9 @@ FOOTBALL_API_KEY = os.getenv('FOOTBALL_API_KEY', '')
 VENICE_API_KEY   = os.getenv('VENICE_API_KEY', '')
 VENICE_MODEL     = os.getenv('VENICE_MODEL', 'kimi-k2-6')
 VENICE_BASE_URL  = 'https://api.venice.ai/api/v1/chat/completions'
-# Chat-backend: 'venice' (Kimi K2, open source) of 'claude' (Haiku).
-CHAT_BACKEND     = os.getenv('KEES_CHAT_BACKEND', 'venice')
+# Chat-backend: 'claude' (Sonnet 5 primair, Kimi K2 als achtervang) of
+# 'venice' om Kimi K2 primair te forceren (Sonnet 5 dan als achtervang).
+CHAT_BACKEND     = os.getenv('KEES_CHAT_BACKEND', 'claude')
 # Daily-update-backend: 'venice' (Kimi) of 'claude' (Sonnet). Bij Venice-fouten altijd
 # fallback naar Claude Sonnet. De write-keten is beveiligd: valideer_data.js + rollback.
 UPDATE_BACKEND   = os.getenv('KEES_UPDATE_BACKEND', 'venice')
@@ -1146,19 +1147,41 @@ def _call_venice(system: str, messages: list, tools: list,
 
 
 def _call_chat_llm(system: str, messages: list, tools: list) -> str:
-    """Chat-dispatcher: Venice/Kimi als primaire backend, Claude Haiku als fallback.
+    """Chat-dispatcher: Claude Sonnet 5 primair, Venice/Kimi K2 als achtervang.
 
-    Alleen voor de chat — de dagelijkse update (write-tools) blijft op Claude draaien.
+    Zet KEES_CHAT_BACKEND='venice' om Kimi primair te draaien (Sonnet 5 dan als
+    achtervang). Alleen voor de chat — de dagelijkse update heeft z'n eigen dispatcher.
+    Elke tak krijgt een verse kopie van messages, zodat een half-afgemaakte tool-loop
+    van de primaire backend de achtervang niet vervuilt.
     """
+    # max_tokens ruimer dan strikt nodig voor 2-3 zinnen: bij data-analyse (get_data
+    # is groot) liep het antwoord anders tegen max_tokens aan en bleef Kees stil.
+    def sonnet():
+        return _call_claude(system=system, messages=list(messages), tools=tools,
+                            model="claude-sonnet-5", max_tokens=1000)
+
+    def kimi():
+        return _call_venice(system, list(messages), tools)
+
     if CHAT_BACKEND == "venice" and VENICE_API_KEY:
         try:
-            return _call_venice(system, messages, tools)
+            return kimi()
         except Exception as e:
-            log.error(f"Venice mislukt ({e}) — fallback naar Claude Haiku.")
-    # Ruimer dan strikt nodig voor 2-3 zinnen: bij data-analyse (get_data is groot)
-    # liep het antwoord anders tegen max_tokens aan en bleef Kees stil.
-    return _call_claude(system=system, messages=messages, tools=tools,
-                        model="claude-haiku-4-5-20251001", max_tokens=1000)
+            log.error(f"Venice/Kimi mislukt ({e}) — achtervang naar Claude Sonnet 5.")
+        return sonnet()
+
+    # Standaard: Sonnet 5 primair, Kimi als achtervang bij een fout of lege credits.
+    if API_KEY:
+        try:
+            antwoord = sonnet()
+            if antwoord != GEEN_CREDITS_BERICHT:
+                return antwoord
+            log.error("Claude-credits op — achtervang naar Venice/Kimi.")
+        except Exception as e:
+            log.error(f"Claude Sonnet 5 mislukt ({e}) — achtervang naar Venice/Kimi.")
+    if VENICE_API_KEY:
+        return kimi()
+    return sonnet()
 
 
 def _call_update_llm(system: str, messages: list, tools: list) -> str:
