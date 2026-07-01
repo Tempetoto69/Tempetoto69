@@ -343,9 +343,11 @@ GEHEUGEN:
 Je hebt een langetermijngeheugen: bovenaan elk bericht krijg je je recente notities mee.
 Wil je iets onthouden voor later — een weddenschap, een belofte, een lopende grap, een
 openstaande rekening met iemand, een gore uitspraak die je wil bewaren — gebruik dan de tool
-onthoud met een korte notitie. Wees er zuinig mee: alleen dingen die later nog leuk of nuttig
-zijn, geen logboek van elk gesprek. Gebruik je notities ook actief: kom terug op oude
-weddenschappen en beloftes als de kans zich voordoet.
+onthoud met een korte notitie. Noem in de notitie wie het betreft, zodat je het later terugvindt.
+Wees hier gerust wat gulzig in: leg weddenschappen, beloftes, lopende grappen en openstaande
+rekeningen vast zodra ze langskomen — je hoeft niet elk gesprek te loggen, maar een weddenschap
+of belofte mag je nooit missen. Gebruik je notities ook actief: kom terug op oude weddenschappen
+en beloftes als de kans zich voordoet.
 
 ACTUELE INFORMATIE VAN HET WEB:
 Je kunt actuele informatie van het web opzoeken (voetbalnieuws, blessures, fitheid en
@@ -511,6 +513,10 @@ TOOL_GIT_PUSH = {
 CHAT_TOOLS   = [TOOL_GET_SCHEDULE, TOOL_GET_STANDINGS, TOOL_GET_DATA, TOOL_FETCH_URL,
                 TOOL_GET_LIVE, TOOL_GET_VOORSPELLINGEN, TOOL_GET_WEDSTRIJDEN_DAG,
                 TOOL_GET_MATCH_VOORSPELLINGEN, TOOL_ONTHOUD]
+# Anthropic server-side web search — alleen voor de Claude-tak. Kimi/Venice doet z'n
+# eigen web search (enable_web_search), dus dit tool NIET aan de gedeelde CHAT_TOOLS
+# toevoegen: de Venice-tool-converter kan geen server-tool (zonder input_schema) aan.
+WEB_SEARCH_TOOL = {"type": "web_search_20260209", "name": "web_search"}
 UPDATE_TOOLS = [TOOL_GET_TOURNAMENT_STATS, TOOL_GET_SCHEDULE, TOOL_GET_STANDINGS,
                 TOOL_GET_DATA, TOOL_FETCH_URL, TOOL_WRITE_DATA, TOOL_GIT_PUSH]
 
@@ -1026,17 +1032,21 @@ GEEN_CREDITS_BERICHT = ("die arme ploert van een Floris heeft niet voldoende gel
 
 
 def _call_claude(system: str, messages: list, tools: list,
-                 model: str, max_tokens: int, allow_write: bool = False) -> str:
+                 model: str, max_tokens: int, allow_write: bool = False,
+                 thinking=None) -> str:
     client = anthropic.Anthropic(api_key=API_KEY)
+    # Cache de (grote, statische) system prompt + tooldefinities: scheelt kosten en
+    # latency op elke herhaalde call. Een losse string wordt een cache-baar tekstblok.
+    sys_param = ([{"type": "text", "text": system,
+                   "cache_control": {"type": "ephemeral"}}]
+                 if isinstance(system, str) else system)
     while True:
         try:
-            response = client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                system=system,
-                tools=tools,
-                messages=messages,
-            )
+            kwargs = dict(model=model, max_tokens=max_tokens, system=sys_param,
+                          tools=tools, messages=messages)
+            if thinking:
+                kwargs["thinking"] = thinking
+            response = client.messages.create(**kwargs)
         except anthropic.APIStatusError as e:
             if "credit balance is too low" in str(e).lower():
                 log.error("Claude credits op — fallback-bericht teruggegeven.")
@@ -1163,8 +1173,14 @@ def _call_chat_llm(system: str, messages: list, tools: list) -> str:
     # max_tokens ruimer dan strikt nodig voor 2-3 zinnen: bij data-analyse (get_data
     # is groot) liep het antwoord anders tegen max_tokens aan en bleef Kees stil.
     def sonnet():
-        return _call_claude(system=system, messages=list(messages), tools=tools,
-                            model="claude-sonnet-5", max_tokens=1000)
+        # Adaptive thinking: Kees denkt eerst na vóór hij typt (minder door-elkaar-halen).
+        # Denk-tokens tellen mee, dus ruimer budget dan de 2-3 zinnen die hij uiteindelijk
+        # post. Web search erbij zodat hij (net als op de Kimi-tak) zelf nieuws/blessures
+        # kan opzoeken.
+        return _call_claude(system=system, messages=list(messages),
+                            tools=tools + [WEB_SEARCH_TOOL],
+                            model="claude-sonnet-5", max_tokens=2500,
+                            thinking={"type": "adaptive"})
 
     def kimi():
         return _call_venice(system, list(messages), tools)
@@ -1220,7 +1236,7 @@ def _datum_regel() -> str:
 
 
 def _geheugen_blok() -> str:
-    notities = _geheugen_lees()
+    notities = _geheugen_lees(50)
     if not notities:
         return ""
     regels = "\n".join(f"- [{n['datum']}] {n['notitie']}" for n in notities)
