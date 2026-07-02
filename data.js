@@ -1748,7 +1748,7 @@ const UITSLAGEN = {
     results:{R32:["0-1", "1-1", "1-1", "2-1", "3-0", "1-2", "2-0", "2-1", "2-0", "2-2", null, null, null, null, null, null],R16:[],KF:[],HF:[],F:[]},
     door:{R32:["Canada", "Paraguay", "Marokko", "Brazilië", "Frankrijk", "Noorwegen", "Mexico", "Engeland", "Verenigde Staten", "België", "", "", "", "", "", ""],R16:[],KF:[],HF:[],F:[]}
   },
-  facts:{ compleet:false, champion:"", finalist:"", topscorers:["Messi","Mbappé","Vinícius Júnior"], topscorerGoals:6, totalGoals:231, yellow:188, red:11},
+  facts:{ compleet:false, champion:"", finalist:"", topscorers:["Mbappé","Messi","E. Haaland"], topscorerGoals:6, totalGoals:241, yellow:193, red:12},
 };
 
 // ============================================================
